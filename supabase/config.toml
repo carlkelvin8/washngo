@@ -1,0 +1,22 @@
+project_id = "washngo"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "washngo://"
+additional_redirect_urls = ["washngo://reset-password", "http://localhost:8081"]
+
+[storage]
+enabled = true
