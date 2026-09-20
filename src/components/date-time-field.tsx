@@ -19,7 +19,8 @@ export function DateTimeField({ label, mode, value, minimumDate, onChange, error
     : value.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const handleChange = (event: DateTimePickerEvent, next?: Date) => {
     if (Platform.OS === 'android') setOpen(false);
-    if (event.type === 'set' && next) onChange(next);
+    if (event.type === 'dismissed') return;
+    if (next) onChange(next);
   };
   return <View style={styles.field}>
     <Text style={styles.label}>{label}</Text>

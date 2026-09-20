@@ -1,3 +1,47 @@
-import MapView, { Marker } from 'react-native-maps'; import { StyleSheet, View } from 'react-native';
-export function TrackingMap({ pickup, laundry, rider }: { pickup: { latitude: number; longitude: number }; laundry: { latitude: number; longitude: number }; rider?: { latitude: number; longitude: number } }) { return <View style={styles.frame}><MapView style={StyleSheet.absoluteFill} initialRegion={{ ...pickup, latitudeDelta: 0.06, longitudeDelta: 0.06 }}><Marker coordinate={pickup} title="Pickup address" pinColor="#1677FF" /><Marker coordinate={laundry} title="Laundry partner" pinColor="#16A36A" />{rider ? <Marker coordinate={rider} title="Your rider" pinColor="#102A43" /> : null}</MapView></View>; }
-const styles = StyleSheet.create({ frame: { height: 260, borderRadius: 18, overflow: 'hidden', backgroundColor: '#D9E2EC' } });
+import MapView, { Marker } from 'react-native-maps';
+import { Platform, StyleSheet, View } from 'react-native';
+
+import { colors } from '@/constants/design';
+
+type LatLng = { latitude: number; longitude: number };
+
+function isValidCoord(c: LatLng | undefined): c is LatLng {
+  return !!c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude) && !(c.latitude === 0 && c.longitude === 0);
+}
+
+export function TrackingMap({
+  pickup,
+  laundry,
+  rider,
+}: {
+  pickup: LatLng;
+  laundry: LatLng;
+  rider?: LatLng;
+}) {
+  const safePickup = isValidCoord(pickup) ? pickup : { latitude: 13.941, longitude: 121.163 };
+  const safeLaundry = isValidCoord(laundry) ? laundry : safePickup;
+
+  return (
+    <View style={styles.frame}>
+      {/* Android overflow:hidden doesn't clip MapView — outer view clips, inner view draws */}
+      <View style={styles.clip}>
+        <MapView
+          style={StyleSheet.absoluteFill}
+          initialRegion={{ ...safePickup, latitudeDelta: 0.06, longitudeDelta: 0.06 }}
+          loadingEnabled
+          showsUserLocation={false}
+          {...(Platform.OS === 'android' ? { provider: 'google' as unknown as undefined } : {})}
+        >
+          <Marker coordinate={safePickup} title="Pickup address" pinColor={colors.blue} />
+          <Marker coordinate={safeLaundry} title="Laundry partner" pinColor={colors.green} />
+          {isValidCoord(rider) ? <Marker coordinate={rider} title="Your rider" pinColor={colors.navy} /> : null}
+        </MapView>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  frame: { height: 260, borderRadius: 18, backgroundColor: '#D9E2EC' },
+  clip: { flex: 1, borderRadius: 18, overflow: 'hidden' },
+});

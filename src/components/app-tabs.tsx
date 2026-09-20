@@ -1,3 +1,5 @@
+// Template tabs — not used. WashNgo uses role-based Stack layouts (see src/components/role-layout.tsx).
+// Kept for Expo template reference only.
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useColorScheme } from 'react-native';
 

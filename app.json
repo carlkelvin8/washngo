@@ -8,7 +8,7 @@
     "scheme": "washngo",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "ph.washngo.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WashNgo uses your location for accurate pickups and live delivery tracking.",
@@ -37,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-sqlite",
       "expo-location",
       "expo-notifications",
       "expo-image-picker",
@@ -48,8 +49,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,4 +1,40 @@
-import { AppError } from '@/lib/errors'; import { supabase } from '@/lib/supabase'; import type { LaundryService, LaundryShop } from '@/types/domain';
-export async function listLaundryShops(search = ''): Promise<LaundryShop[]> { let query = supabase.from('laundry_shops').select('*, services:laundry_services(*)').eq('is_verified', true).eq('is_active', true).eq('city', 'Lipa City').order('average_rating', { ascending: false }); if (search.trim()) query = query.ilike('name', `%${search.trim()}%`); const { data, error } = await query; if (error) throw new AppError('Unable to load laundry partners.', error); return (data ?? []) as LaundryShop[]; }
-export async function getLaundryShop(id: string): Promise<LaundryShop> { const { data, error } = await supabase.from('laundry_shops').select('*, services:laundry_services(*)').eq('id', id).single(); if (error || !data) throw new AppError('Unable to load this laundry partner.', error); return data as LaundryShop; }
-export async function saveService(input: Partial<LaundryService> & Pick<LaundryService, 'shop_id' | 'name' | 'price' | 'pricing_type' | 'minimum_charge' | 'estimated_turnaround_hours'>) { const { data, error } = await supabase.from('laundry_services').upsert(input).select().single(); if (error) throw new AppError('Unable to save service.', error); return data as LaundryService; }
+import { AppError } from '@/lib/errors';
+import { supabase } from '@/lib/supabase';
+import type { LaundryService, LaundryShop } from '@/types/domain';
+
+export async function listLaundryShops(search = ''): Promise<LaundryShop[]> {
+  let query = supabase
+    .from('laundry_shops')
+    .select('*, services:laundry_services(*)')
+    .eq('is_verified', true)
+    .eq('is_active', true)
+    .eq('city', 'Lipa City')
+    .order('average_rating', { ascending: false });
+
+  if (search.trim()) {
+    const escaped = search.trim().replace(/[%_\\]/g, '\\$&');
+    query = query.ilike('name', `%${escaped}%`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new AppError('Unable to load laundry partners.', error);
+  return (data ?? []) as LaundryShop[];
+}
+
+export async function getLaundryShop(id: string): Promise<LaundryShop> {
+  const { data, error } = await supabase.from('laundry_shops').select('*, services:laundry_services(*)').eq('id', id).single();
+  if (error || !data) throw new AppError('Unable to load this laundry partner.', error);
+  return data as LaundryShop;
+}
+
+export async function saveService(
+  input: Partial<LaundryService> & Pick<LaundryService, 'shop_id' | 'name' | 'price' | 'pricing_type' | 'minimum_charge' | 'estimated_turnaround_hours'>,
+) {
+  const { data, error } = await supabase
+    .from('laundry_services')
+    .upsert(input, { onConflict: 'shop_id,name' })
+    .select()
+    .single();
+  if (error) throw new AppError('Unable to save service.', error);
+  return data as LaundryService;
+}
