@@ -26,7 +26,19 @@ function ActiveJob({ job }: { job: DeliveryJob }) {
       if (action?.status === 'completed') await captureAndUploadProof(job.id, job.order_id, 'delivery');
       return updateJob(job.id, action!.status);
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['rider-jobs', 'paged'] }),
+    onSuccess: async () => {
+      try {
+        const Haptics = await import('expo-haptics');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+      void queryClient.invalidateQueries({ queryKey: ['rider-jobs', 'paged'] });
+    },
+    onError: async () => {
+      try {
+        const Haptics = await import('expo-haptics');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      } catch {}
+    },
   });
 
   const run = () => {
@@ -96,6 +108,10 @@ export default function RiderDashboard() {
   const accept = useMutation({
     mutationFn: acceptJob,
     onSuccess: async () => {
+      try {
+        const Haptics = await import('expo-haptics');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
       await queryClient.invalidateQueries({ queryKey: ['available-jobs'] });
       await queryClient.invalidateQueries({ queryKey: ['rider-jobs', 'paged'] });
     },

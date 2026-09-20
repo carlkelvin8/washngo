@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { z } from 'zod';
 
 import { Button, Card, Field, Screen, Title } from '@/components/ui';
@@ -19,27 +20,32 @@ export default function ResetPasswordScreen() {
   // Handle PKCE code from email link (washngo://reset-password?code=... or web ?code=)
   useEffect(() => {
     let cancelled = false;
+    const exchangeFromUrl = async (url: string) => {
+      if (url.includes('code=')) {
+        const { error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error && !cancelled && __DEV__) console.warn('PKCE exchange failed', error.message);
+      }
+    };
     const handle = async () => {
       try {
-        // Try to exchange code if present in URL (web) or deep link query
         if (typeof window !== 'undefined') {
           const url = window.location.href;
-          if (url.includes('code=')) {
-            const { error } = await supabase.auth.exchangeCodeForSession(url);
-            if (error && !cancelled && __DEV__) console.warn('PKCE exchange failed', error.message);
-          } else {
-            await supabase.auth.getSession();
-          }
+          if (url.includes('code=')) await exchangeFromUrl(url);
+          else await supabase.auth.getSession();
         } else {
           await supabase.auth.getSession();
         }
+        const initial = await Linking.getInitialURL();
+        if (initial && !cancelled) await exchangeFromUrl(initial);
       } catch {
         // ignore — user will see "Auth session missing" on submit if no session
       }
     };
     void handle();
+    const sub = Linking.addEventListener('url', ({ url }) => void exchangeFromUrl(url));
     return () => {
       cancelled = true;
+      sub.remove();
     };
   }, []);
   const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof schema>>({

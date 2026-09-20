@@ -23,8 +23,10 @@ export default function NotificationsScreen() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, () =>
         queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       )
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+      .subscribe((s) => {
+        if (s === 'CHANNEL_ERROR' && __DEV__) console.warn('notifications channel error');
+      });
+    return () => { supabase.removeChannel(channel).catch(() => {}); };
   }, [userId]);
 
   if (query.isLoading) return <LoadingState label="Loading notifications…" />;

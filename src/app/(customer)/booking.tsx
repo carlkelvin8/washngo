@@ -66,12 +66,22 @@ export default function Booking() {
   const mutation = useMutation({
     mutationFn: createBooking,
     onSuccess: async (order) => {
+      try {
+        const Haptics = await import('expo-haptics');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
       draft.reset();
       // Invalidate orders so list shows new booking immediately
       const { queryClient } = await import('@/lib/query-client');
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders', 'paged'] });
       router.replace(`/(customer)/orders/${order.id}`);
+    },
+    onError: async () => {
+      try {
+        const Haptics = await import('expo-haptics');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      } catch {}
     },
   });
 

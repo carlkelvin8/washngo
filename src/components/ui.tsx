@@ -159,10 +159,25 @@ export function Badge({ children, tone = 'info' }: PropsWithChildren<{ tone?: 'i
 export function EmptyState({ title, message, action }: { title: string; message: string; action?: ReactNode }) {
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>◌</Text>
+      <View style={styles.emptyIconWrap}>
+        <Text style={styles.emptyIcon}>◎</Text>
+      </View>
       <Text style={styles.h2}>{title}</Text>
       <Text style={styles.body}>{message}</Text>
-      {action}
+      {action ? <View style={styles.emptyAction}>{action}</View> : null}
+    </View>
+  );
+}
+
+export function Skeleton({ height = 80 }: { height?: number }) {
+  return <View style={[styles.skeleton, { height }]} />;
+}
+export function SkeletonList({ count = 3 }: { count?: number }) {
+  return (
+    <View style={styles.skeletonList}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} height={84} />
+      ))}
     </View>
   );
 }
@@ -271,10 +286,14 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: '#FFEBEB' },
   badgeText: { fontSize: 11, color: colors.navy, fontWeight: '800', textTransform: 'capitalize' },
   empty: { flex: 1, minHeight: 280, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl },
-  emptyIcon: { fontSize: 56, color: colors.blue },
+  emptyIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#B8D7FF' },
+  emptyIcon: { fontSize: 32, color: colors.blue, fontWeight: '800' },
+  emptyAction: { marginTop: space.sm },
+  skeleton: { backgroundColor: '#EAF0F7', borderRadius: radius.md, borderWidth: 1, borderColor: '#EBF0F5' },
+  skeletonList: { gap: space.md },
   h2: { fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center' },
   body: { fontSize: 15, lineHeight: 22, color: colors.muted, textAlign: 'center' },
-  center: { flex: 1, minHeight: 300, justifyContent: 'center', alignItems: 'center', gap: space.md },
+  center: { flex: 1, minHeight: 180, justifyContent: 'center', alignItems: 'center', gap: space.md },
   metric: { fontSize: 26, fontWeight: '900', color: colors.navy },
   caption: { color: colors.muted, fontSize: 12 },
 });
