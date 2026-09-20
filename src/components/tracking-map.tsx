@@ -1,5 +1,6 @@
 import MapView, { Marker } from 'react-native-maps';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { colors } from '@/constants/design';
 
@@ -18,14 +19,33 @@ export function TrackingMap({
   laundry: LatLng;
   rider?: LatLng;
 }) {
-  const safePickup = isValidCoord(pickup) ? pickup : { latitude: 13.941, longitude: 121.163 };
-  const safeLaundry = isValidCoord(laundry) ? laundry : safePickup;
+  const safePickup = useMemo(() => (isValidCoord(pickup) ? pickup : { latitude: 13.941, longitude: 121.163 }), [pickup]);
+  const safeLaundry = useMemo(() => (isValidCoord(laundry) ? laundry : safePickup), [laundry, safePickup]);
+  const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    const coords = [safePickup, safeLaundry, rider].filter(isValidCoord);
+    if (coords.length < 2) return;
+    const id = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 40, bottom: 40, left: 40, right: 40 },
+        animated: true,
+      });
+    }, 300);
+    return () => clearTimeout(id);
+  }, [safePickup, safeLaundry, rider]);
+
+  useEffect(() => {
+    if (!isValidCoord(rider)) return;
+    mapRef.current?.animateToRegion({ ...rider, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 600);
+  }, [rider]);
 
   return (
     <View style={styles.frame}>
       {/* Android overflow:hidden doesn't clip MapView — outer view clips, inner view draws */}
       <View style={styles.clip}>
         <MapView
+          ref={mapRef}
           style={StyleSheet.absoluteFill}
           initialRegion={{ ...safePickup, latitudeDelta: 0.06, longitudeDelta: 0.06 }}
           loadingEnabled

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button, Card, ui } from '@/components/ui';
 import { ensureRoomForOrder, getRoomForOrder, listMessages, sendMessage } from '@/services/chat.service';
@@ -78,43 +78,48 @@ export function OrderChat({ orderId }: { orderId: string }) {
       <Text style={ui.h2}>Order chat</Text>
       <Text style={ui.caption}>Room {roomId.slice(0, 8)}… · only participants can read or send.</Text>
 
-      {messages.isLoading ? (
-        <Text style={ui.body}>Opening messages…</Text>
-      ) : messages.data?.length ? (
-        <View style={styles.list}>
-          {messages.data.map((item) => {
-            const mine = item.sender_id === userId;
-            return (
-              <View key={item.id} style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-                <Text style={[styles.bubbleText, mine ? styles.mineText : styles.theirsText]}>{item.body}</Text>
-                <Text style={styles.time}>{new Date(item.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</Text>
-              </View>
-            );
-          })}
-        </View>
-      ) : (
-        <Text style={ui.body}>No messages yet. Say hello!</Text>
-      )}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+        {messages.isLoading ? (
+          <Text style={ui.body}>Opening messages…</Text>
+        ) : messages.data?.length ? (
+          <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+            {messages.data.map((item) => {
+              const mine = item.sender_id === userId;
+              return (
+                <View key={item.id} style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                  <Text style={[styles.bubbleText, mine ? styles.mineText : styles.theirsText]}>{item.body}</Text>
+                  <Text style={styles.time}>{new Date(item.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <Text style={ui.body}>No messages yet. Say hello!</Text>
+        )}
 
-      <View style={styles.row}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Type a message…"
-          maxLength={2000}
-          style={styles.input}
-          placeholderTextColor={colors.muted}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !draft.trim() || sender.isPending }}
-          onPress={() => draft.trim() && sender.mutate()}
-          style={[styles.send, (!draft.trim() || sender.isPending) && styles.sendDisabled]}
-          disabled={!draft.trim() || sender.isPending}
-        >
-          <Text style={styles.sendText}>{sender.isPending ? '…' : 'Send'}</Text>
-        </Pressable>
-      </View>
+        <View style={styles.row}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Type a message…"
+            maxLength={2000}
+            style={styles.input}
+            placeholderTextColor={colors.muted}
+            returnKeyType="send"
+            onSubmitEditing={() => draft.trim() && sender.mutate()}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !draft.trim() || sender.isPending }}
+            onPress={() => draft.trim() && sender.mutate()}
+            style={[styles.send, (!draft.trim() || sender.isPending) && styles.sendDisabled]}
+            disabled={!draft.trim() || sender.isPending}
+            hitSlop={8}
+          >
+            <Text style={styles.sendText}>{sender.isPending ? '…' : 'Send'}</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
       {sender.error ? <Text style={styles.error}>{friendlyError(sender.error)}</Text> : null}
       {messages.error ? <Text style={styles.error}>{friendlyError(messages.error)}</Text> : null}
     </Card>
@@ -122,7 +127,8 @@ export function OrderChat({ orderId }: { orderId: string }) {
 }
 
 const styles = StyleSheet.create({
-  list: { gap: 8 },
+  listScroll: { maxHeight: 320 },
+  list: { gap: 8, paddingVertical: 4 },
   bubble: { maxWidth: '84%', padding: space.md, borderRadius: radius.md, gap: 4 },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.blue },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.blueSoft, borderWidth: 1, borderColor: '#B8D7FF' },

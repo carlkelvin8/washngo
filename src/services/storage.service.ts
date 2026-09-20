@@ -19,17 +19,31 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
   if (result.canceled) throw new AppError('No proof was submitted. Take a photo when you are ready.');
 
   const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-  const asset = result.assets[0];
+  let assetUri = result.assets[0].uri;
+  let mimeType = result.assets[0].mimeType ?? 'image/jpeg';
+
+  // First-principles: resize to 1280w to avoid 4MB heap + OOM on low-end Android
+  try {
+    const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+    const manipulated = await manipulateAsync(assetUri, [{ resize: { width: 1280 } }], {
+      compress: 0.65,
+      format: SaveFormat.JPEG,
+    });
+    assetUri = manipulated.uri;
+  } catch {
+    // manipulator not available (web) — use original
+  }
+
   // fetch() fails for ph:// on iOS; try FileSystem as fallback
   let blob: ArrayBuffer;
   try {
-    const response = await fetch(asset.uri);
+    const response = await fetch(assetUri);
     if (!response.ok) throw new Error(`fetch ${response.status}`);
     blob = await response.arrayBuffer();
   } catch {
     try {
       const { File } = await import('expo-file-system');
-      const file = new File(asset.uri);
+      const file = new File(assetUri);
       const bytes = await file.bytes();
       blob = bytes.buffer as ArrayBuffer;
     } catch {
@@ -39,8 +53,9 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
   const path = `${orderId}/${jobId}/${Date.now()}.jpg`;
 
   const upload = await supabase.storage.from('delivery-proofs').upload(path, blob, {
-    contentType: asset.mimeType ?? 'image/jpeg',
+    contentType: mimeType,
     upsert: false,
+    cacheControl: '3600',
   });
   if (upload.error) throw new AppError('Unable to upload proof. Check your connection and try again.', upload.error);
 

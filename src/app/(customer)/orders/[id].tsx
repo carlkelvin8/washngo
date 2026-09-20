@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Image } from 'expo-image';
+import { useEffect, useState } from 'react';
 import { Badge, Button, Card, ErrorState, Field, LoadingState, Screen, Title, ui } from '@/components/ui';
 import { OrderChat } from '@/components/order-chat';
 import { TrackingMap } from '@/components/tracking-map';
@@ -198,17 +199,7 @@ export default function OrderDetails() {
         <Text style={ui.body}>Loading proofs…</Text>
       ) : proofs.data?.length ? (
         proofs.data.map((proof) => (
-          <Card key={proof.id}>
-            <View style={ui.between}>
-              <Text style={ui.h2}>{proof.proof_type === 'pickup' ? 'Pickup proof' : 'Delivery proof'}</Text>
-              <Text style={ui.caption}>{new Date(proof.created_at).toLocaleString()}</Text>
-            </View>
-            <Text style={ui.caption}>📷 {proof.photo_path}</Text>
-            <Text style={ui.caption}>
-              Location {proof.latitude.toFixed(5)}, {proof.longitude.toFixed(5)}
-            </Text>
-            <Text style={ui.caption}>Private proof — visible only to order participants (RLS).</Text>
-          </Card>
+          <ProofCard key={proof.id} proof={proof} />
         ))
       ) : (
         <Text style={ui.body}>No proofs yet. Rider will attach photo + GPS at pickup and delivery.</Text>
@@ -235,6 +226,28 @@ export default function OrderDetails() {
   );
 }
 
+function ProofCard({ proof }: { proof: { id: string; proof_type: string; photo_path: string; latitude: number; longitude: number; created_at: string } }) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.storage.from('delivery-proofs').createSignedUrl(proof.photo_path, 3600).then(({ data }) => {
+      if (active && data?.signedUrl) setSignedUrl(data.signedUrl);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [proof.photo_path]);
+  return (
+    <Card>
+      <View style={ui.between}>
+        <Text style={ui.h2}>{proof.proof_type === 'pickup' ? 'Pickup proof' : 'Delivery proof'}</Text>
+        <Text style={ui.caption}>{new Date(proof.created_at).toLocaleString('en-PH')}</Text>
+      </View>
+      {signedUrl ? <Image source={{ uri: signedUrl }} style={styles.proofImage} contentFit="cover" transition={200} /> : <Text style={ui.caption}>📷 {proof.photo_path}</Text>}
+      <Text style={ui.caption}>Location {proof.latitude.toFixed(5)}, {proof.longitude.toFixed(5)}</Text>
+      <Text style={ui.caption}>Private proof — visible only to order participants (RLS).</Text>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   stars: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 },
   star: { fontSize: 36, color: colors.line },
@@ -242,4 +255,5 @@ const styles = StyleSheet.create({
   error: { color: colors.red, fontSize: 13, fontWeight: '600' },
   dot: { color: colors.blue, fontSize: 12, marginTop: 2 },
   logTitle: { fontWeight: '700', color: colors.ink },
+  proofImage: { height: 180, borderRadius: 12, backgroundColor: '#EBF0F5', marginTop: 8 },
 });

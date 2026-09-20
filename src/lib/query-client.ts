@@ -8,6 +8,7 @@ export const queryClient = new QueryClient({
       retry: 2,
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
       refetchOnWindowFocus: false,
+      placeholderData: (prev: unknown) => prev,
     },
     mutations: { retry: 0 },
   },
