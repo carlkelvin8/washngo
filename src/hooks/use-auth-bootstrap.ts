@@ -15,7 +15,9 @@ export function useAuthBootstrap() {
       .then(({ session, profile }) => {
         if (active) setAuth(session, profile);
       })
-      .catch((error) => console.error('Auth restore failed', error))
+      .catch((error) => {
+        if (__DEV__) console.error('Auth restore failed', error);
+      })
       .finally(() => {
         if (active) setRestoring(false);
       });

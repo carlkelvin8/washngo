@@ -7,7 +7,7 @@ const schema = z.object({
 
 const parsed = schema.safeParse(process.env);
 
-if (!parsed.success) {
+if (!parsed.success && __DEV__) {
   // Visible in Expo logs — never throw, so the app can still render an error state.
   console.warn('Supabase env not configured', parsed.error.flatten().fieldErrors);
 }

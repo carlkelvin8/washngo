@@ -20,7 +20,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
   const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
   if (!projectId) {
-    console.warn('EXPO_PUBLIC_EAS_PROJECT_ID missing — push token not registered');
+    if (__DEV__) console.warn('EXPO_PUBLIC_EAS_PROJECT_ID missing — push token not registered');
     return null;
   }
 
