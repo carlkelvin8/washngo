@@ -10,9 +10,12 @@ import { updateProfile } from '@/services/profile.service';
 import { friendlyError } from '@/lib/errors';
 import { colors } from '@/constants/design';
 
+function normalizePhone(v: string) {
+  return v.replace(/[\s\-\(\)]/g, '');
+}
 const schema = z.object({
   full_name: z.string().trim().min(2, 'Enter your full name.').max(120),
-  phone: z.string().regex(/^(\+63|0)9\d{9}$/, 'Use a valid Philippine mobile number.'),
+  phone: z.string().transform(normalizePhone).pipe(z.string().regex(/^(\+63|0)9\d{9}$/, 'Use a valid Philippine mobile number.')),
 });
 
 export default function ProfileScreen() {
@@ -43,7 +46,7 @@ export default function ProfileScreen() {
 
   return (
     <Screen>
-      <Title eyebrow={`${profile?.role.replace('_',' ')} · ${profile?.status}`}>Your profile</Title>
+      <Title eyebrow={`${profile?.role.replaceAll('_',' ')} · ${profile?.status}`}>Your profile</Title>
       <Card>
         <Controller control={control} name="full_name" render={({ field }) => <Field label="Full name" value={field.value} onChangeText={field.onChange} error={errors.full_name?.message} />} />
         <Controller control={control} name="phone" render={({ field }) => <Field label="Mobile number" value={field.value} onChangeText={field.onChange} keyboardType="phone-pad" error={errors.phone?.message} />} />

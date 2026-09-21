@@ -35,7 +35,7 @@ function OrderCard({ order }: { order: Order }) {
       <Text style={ui.body}>
         Pickup {order.pickup_date} · {order.estimated_weight} kg estimated
       </Text>
-      <Text style={ui.price}>₱{order.total_amount.toFixed(2)}</Text>
+      <Text style={ui.price}>₱{Number(order.total_amount).toFixed(2)}</Text>
       {mutation.error ? <Text style={{ color: '#D64545', fontSize: 12 }}>{friendlyError(mutation.error)}</Text> : null}
       {reject.error ? <Text style={{ color: '#D64545', fontSize: 12 }}>{friendlyError(reject.error)}</Text> : null}
       {action ? (
@@ -68,14 +68,14 @@ export default function LaundryDashboard() {
   if (query.isError) return <ErrorState message="Partner orders are unavailable." retry={() => void query.refetch()} />;
 
   const active = query.data?.filter((o) => !['completed', 'cancelled', 'rejected'].includes(o.status)) ?? [];
-  const revenue = query.data?.filter((o) => o.status === 'completed').reduce((sum, o) => sum + o.laundry_subtotal, 0) ?? 0;
+  const revenue = query.data?.filter((o) => o.status === 'completed').reduce((sum, o) => sum + Number(o.laundry_subtotal), 0) ?? 0;
 
   return (
     <Screen refreshing={query.isFetching} onRefresh={() => void query.refetch()}>
       <Title eyebrow="Partner workspace">Laundry operations</Title>
       <View style={ui.grid}>
         <Metric label="Active orders" value={active.length} />
-        <Metric label="Laundry revenue" value={`₱${revenue.toFixed(0)}`} hint="Completed orders" />
+        <Metric label="Laundry revenue" value={`₱${Number(revenue).toFixed(2)}`} hint="Completed orders" />
       </View>
       {active.length ? active.map((o) => <OrderCard key={o.id} order={o} />) : <EmptyState title="All caught up" message="Incoming bookings will appear here in realtime. Pull to refresh." />}
       <AccountCard />

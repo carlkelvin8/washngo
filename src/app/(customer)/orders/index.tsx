@@ -33,7 +33,7 @@ export default function Orders() {
                 <Badge tone={orderStatusTone(order.status)}>{order.status.replaceAll('_', ' ')}</Badge>
               </View>
               <Text style={ui.body}>{order.laundry_shop?.name ?? 'Laundry order'}</Text>
-              <Text style={ui.price}>₱{order.total_amount.toFixed(2)}</Text>
+              <Text style={ui.price}>₱{Number(order.total_amount).toFixed(2)}</Text>
               <Text style={ui.caption}>
                 {new Date(order.created_at).toLocaleDateString()} · {order.payment_method === 'cod' ? 'COD' : 'Pay later'}
               </Text>

@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
-import 'expo-sqlite/localStorage/install';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 import { env } from '@/lib/env';
 
@@ -10,15 +11,36 @@ const serverStorage = {
   removeItem: async (_key: string): Promise<void> => undefined,
 };
 
-function getAuthStorage() {
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage !== null && typeof localStorage.getItem === 'function') {
-      return localStorage;
+const secureStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
     }
-  } catch {
-    // private browsing / SSR may throw on access
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {}
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {}
+  },
+};
+
+function getAuthStorage() {
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage !== null && typeof localStorage.getItem === 'function') {
+        return localStorage;
+      }
+    } catch {}
+    return serverStorage;
   }
-  return serverStorage;
+  return secureStorage;
 }
 
 export const supabase = createClient(env.EXPO_PUBLIC_SUPABASE_URL, env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {

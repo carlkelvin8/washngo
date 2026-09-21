@@ -71,7 +71,7 @@ export default function CustomerHome() {
           <Card key={shop.id} onPress={() => router.push(`/(customer)/laundries/${shop.id}`)}>
             <View style={ui.between}>
               <Text style={ui.h2}>{shop.name}</Text>
-              <Text>★ {shop.average_rating.toFixed(1)}</Text>
+              <Text>★ {Number(shop.average_rating).toFixed(1)}</Text>
             </View>
             <Text style={ui.body}>{shop.address}</Text>
             <Text style={ui.caption}>{shop.services?.filter((s) => s.is_active).map((s) => s.name).join(' · ') || 'Services available'}</Text>
@@ -96,7 +96,7 @@ export default function CustomerHome() {
               <Badge tone={orderStatusTone(order.status)}>{orderStatusLabel(order.status)}</Badge>
             </View>
             <Text style={ui.body}>{order.laundry_shop?.name ?? 'Laundry order'}</Text>
-            <Text style={ui.price}>₱{order.total_amount.toFixed(2)}</Text>
+            <Text style={ui.price}>₱{Number(order.total_amount).toFixed(2)}</Text>
           </Card>
         ))
       ) : (

@@ -7,12 +7,16 @@ import { getLaundryShop } from '@/services/laundry.service';
 import { listRatingsForShop } from '@/services/rating.service';
 import { useBookingStore } from '@/store/booking.store';
 
+function getParamId(raw: string | string[] | undefined): string | undefined {
+  return Array.isArray(raw) ? raw[0] : raw;
+}
 export default function ShopDetails() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  const id = getParamId(rawId);
   const router = useRouter();
   const patch = useBookingStore((s) => s.patch);
-  const query = useQuery({ queryKey: ['laundry', id], queryFn: () => getLaundryShop(id) });
-  const reviews = useQuery({ queryKey: ['ratings', id], queryFn: () => listRatingsForShop(id, 5), enabled: Boolean(id) });
+  const query = useQuery({ queryKey: ['laundry', id], queryFn: () => getLaundryShop(id!), enabled: Boolean(id) });
+  const reviews = useQuery({ queryKey: ['ratings', id], queryFn: () => listRatingsForShop(id!, 5), enabled: Boolean(id) });
 
   if (query.isLoading) return <LoadingState label="Opening partner…" />;
   if (query.isError || !query.data) return <ErrorState message="This laundry partner is unavailable." retry={() => void query.refetch()} />;
@@ -21,7 +25,7 @@ export default function ShopDetails() {
 
   return (
     <Screen refreshing={query.isFetching} onRefresh={() => void query.refetch()}>
-      <Title eyebrow={`★ ${shop.average_rating.toFixed(1)} · ${shop.is_verified ? 'Verified' : 'Pending verification'}`}>
+      <Title eyebrow={`★ ${Number(shop.average_rating).toFixed(1)} · ${shop.is_verified ? 'Verified' : 'Pending verification'}`}>
         {shop.name}
       </Title>
       {shop.description ? <Text style={ui.body}>{shop.description}</Text> : null}
@@ -39,12 +43,12 @@ export default function ShopDetails() {
               <View style={ui.between}>
                 <Text style={ui.h2}>{service.name}</Text>
                 <Text style={ui.price}>
-                  ₱{service.price}/{service.pricing_type === 'per_kg' ? 'kg' : 'load'}
+                  ₱{Number(service.price).toFixed(2)}/{service.pricing_type === 'per_kg' ? 'kg' : 'load'}
                 </Text>
               </View>
               {service.description ? <Text style={ui.body}>{service.description}</Text> : null}
               <Text style={ui.caption}>
-                Minimum ₱{service.minimum_charge} · about {service.estimated_turnaround_hours} hours
+                Minimum ₱{Number(service.minimum_charge).toFixed(2)} · about {service.estimated_turnaround_hours} hours
               </Text>
               <Button
                 onPress={() => {

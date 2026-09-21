@@ -8,3 +8,4 @@ web-build/
 *.log
 .DS_Store
 work/
+android/
