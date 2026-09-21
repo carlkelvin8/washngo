@@ -100,11 +100,20 @@ const moveDirectories = async (userInput) => {
   }
 };
 
+if (process.env.CI || process.argv.includes('--force')) {
+  console.error('❌ Refusing to run reset-project in CI or without confirmation. Pass --force to override.');
+  process.exit(1);
+}
 rl.question(
   "Do you want to move existing files to /example instead of deleting them? (Y/n): ",
   (answer) => {
     const userInput = answer.trim().toLowerCase() || "y";
     if (userInput === "y" || userInput === "n") {
+      if (fs.existsSync(path.join(root, 'src')) && fs.readdirSync(path.join(root, 'src')).length > 5) {
+        console.log('⚠️  src/ looks populated — aborting to prevent data loss. Delete manually if intended.');
+        rl.close();
+        return;
+      }
       moveDirectories(userInput).finally(() => rl.close());
     } else {
       console.log("❌ Invalid input. Please enter 'Y' or 'N'.");

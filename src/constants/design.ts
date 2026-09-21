@@ -6,7 +6,7 @@ export const colors = {
   greenSoft: '#E8F8F1',
   amber: '#D97706',
   red: '#D64545',
-  ink: '#102A43',
+  ink: '#102A43', // alias of navy for text
   muted: '#627D98',
   line: '#D9E2EC',
   canvas: '#F6F8FB',

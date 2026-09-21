@@ -9,3 +9,5 @@ web-build/
 .DS_Store
 work/
 android/
+*.docx
+!docs/template.docx

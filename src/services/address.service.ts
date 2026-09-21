@@ -3,7 +3,11 @@ import { supabase } from '@/lib/supabase';
 import type { Address } from '@/types/domain';
 
 export async function listAddresses(): Promise<Address[]> {
-  const { data, error } = await supabase.from('addresses').select('*').order('is_default', { ascending: false });
+  const { data, error } = await supabase
+    .from('addresses')
+    .select('*')
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: false });
   if (error) throw new AppError('Unable to load addresses.', error);
   return (data ?? []) as Address[];
 }
