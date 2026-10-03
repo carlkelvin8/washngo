@@ -21,6 +21,9 @@ export function OrderChat({ orderId }: { orderId: string }) {
     queryKey: ['chat-messages', roomId],
     queryFn: () => listMessages(roomId!),
     enabled: Boolean(roomId),
+    // Global placeholderData keeps the previous room's bubbles visible while
+    // the new room loads — wrong conversation. Opt out for chat.
+    placeholderData: undefined,
   });
 
   const ensure = useMutation({
@@ -31,8 +34,11 @@ export function OrderChat({ orderId }: { orderId: string }) {
   const sender = useMutation({
     mutationFn: () => {
       if (!roomId) throw new Error('Chat room not ready');
-      const body = draft.trim().slice(0, 2000);
+      // Validate here (don't silently slice): the service rejects >2000, so
+      // truncation in the component would disagree with the error contract.
+      const body = draft.trim();
       if (!body) throw new Error('Enter a message');
+      if (body.length > 2000) throw new Error('Keep messages under 2000 characters.');
       return sendMessage(roomId, body);
     },
     onSuccess: async () => {
@@ -52,7 +58,10 @@ export function OrderChat({ orderId }: { orderId: string }) {
         if (status === 'CHANNEL_ERROR' && __DEV__) console.warn('chat channel error', roomId);
       });
     return () => {
-      supabase.removeChannel(channel).catch(() => {});
+      try {
+        const out = supabase.removeChannel(channel) as unknown;
+        if (out instanceof Promise) out.catch(() => {});
+      } catch {}
     };
   }, [roomId]);
 

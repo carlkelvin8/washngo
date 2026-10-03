@@ -5,10 +5,14 @@ import { getProfile } from '@/services/profile.service';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth.store';
 
-export function useAuthBootstrap() {
+export function useAuthBootstrap(disabled = false) {
   const { setAuth, setRestoring } = useAuthStore();
 
   useEffect(() => {
+    if (disabled) {
+      setRestoring(false);
+      return;
+    }
     let active = true;
 
     restoreAuth()
@@ -48,5 +52,5 @@ export function useAuthBootstrap() {
       active = false;
       data.subscription.unsubscribe();
     };
-  }, [setAuth, setRestoring]);
+  }, [disabled, setAuth, setRestoring]);
 }

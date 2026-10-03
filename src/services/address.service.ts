@@ -12,7 +12,7 @@ export async function listAddresses(): Promise<Address[]> {
   return (data ?? []) as Address[];
 }
 
-export async function createAddress(input: Omit<Address, 'id' | 'user_id'>) {
+export async function createAddress(input: Omit<Address, 'id' | 'user_id' | 'created_at'>) {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new AppError('Please sign in again.');
   const { data, error } = await supabase.from('addresses').insert({ ...input, user_id: auth.user.id }).select().single();
@@ -21,6 +21,13 @@ export async function createAddress(input: Omit<Address, 'id' | 'user_id'>) {
 }
 
 export async function removeAddress(id: string) {
-  const { error } = await supabase.from('addresses').delete().eq('id', id);
-  if (error) throw new AppError('Unable to remove address.', error);
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new AppError('Please sign in again.');
+  // Scope by owner so one user can never delete another's address even if
+  // RLS is misconfigured; surface FK blocks (address on live orders) clearly.
+  const { error } = await supabase.from('addresses').delete().eq('id', id).eq('user_id', auth.user.id);
+  if (error) {
+    if (error.code === '23503') throw new AppError('This address is linked to an existing order and cannot be removed.', error);
+    throw new AppError('Unable to remove address.', error);
+  }
 }

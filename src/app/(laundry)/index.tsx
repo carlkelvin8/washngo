@@ -18,12 +18,22 @@ function OrderCard({ order }: { order: Order }) {
   const action = next[order.status];
   const mutation = useMutation({
     mutationFn: () => transitionOrder(order.id, action!.status),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['partner-orders'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+      // Customer screens read separate keys — nudge them too (realtime covers
+      // the live case; this covers mounted-without-subscription).
+      void queryClient.invalidateQueries({ queryKey: ['order', order.id] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
 
   const reject = useMutation({
     mutationFn: () => transitionOrder(order.id, 'rejected', 'Rejected by partner'),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['partner-orders'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['order', order.id] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
 
   return (
@@ -68,7 +78,12 @@ export default function LaundryDashboard() {
   if (query.isError) return <ErrorState message="Partner orders are unavailable." retry={() => void query.refetch()} />;
 
   const active = query.data?.filter((o) => !['completed', 'cancelled', 'rejected'].includes(o.status)) ?? [];
-  const revenue = query.data?.filter((o) => o.status === 'completed').reduce((sum, o) => sum + Number(o.laundry_subtotal), 0) ?? 0;
+  const revenue = query.data
+    ?.filter((o) => o.status === 'completed')
+    .reduce((sum, o) => {
+      const v = Number(o.laundry_subtotal);
+      return sum + (Number.isFinite(v) ? v : 0);
+    }, 0) ?? 0;
 
   return (
     <Screen refreshing={query.isFetching} onRefresh={() => void query.refetch()}>

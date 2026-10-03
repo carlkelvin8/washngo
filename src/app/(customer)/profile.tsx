@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { StyleSheet, Text } from 'react-native';
@@ -15,7 +15,12 @@ function normalizePhone(v: string) {
 }
 const schema = z.object({
   full_name: z.string().trim().min(2, 'Enter your full name.').max(120),
-  phone: z.string().transform(normalizePhone).pipe(z.string().regex(/^(\+63|0)9\d{9}$/, 'Use a valid Philippine mobile number.')),
+  // Null-phone users (OAuth/legacy rows) must be able to save a name-only
+  // edit — empty falls back to the stored value instead of failing regex.
+  phone: z
+    .string()
+    .transform(normalizePhone)
+    .pipe(z.string().regex(/^(\+63|0)9\d{9}$/, 'Use a valid Philippine mobile number.').or(z.literal(''))),
 });
 
 export default function ProfileScreen() {
@@ -24,17 +29,25 @@ export default function ProfileScreen() {
   const [message, setMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof schema>>({
+  const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { full_name: profile?.full_name ?? '', phone: profile?.phone ?? '' },
   });
+
+  // defaultValues are captured once — when the async profile arrives after
+  // mount, reset the form or submit would blank-save name/phone.
+  useEffect(() => {
+    if (profile) reset({ full_name: profile.full_name ?? '', phone: profile.phone ?? '' });
+  }, [profile, reset]);
 
   if (!profile) return null;
 
   const submit = handleSubmit(async (values) => {
     if (!profile) return;
     try {
-      const updated = await updateProfile(profile.id, { full_name: values.full_name, phone: values.phone });
+      // Empty input keeps the stored number (or null) — never save ''.
+      const phone = values.phone === '' ? profile.phone : values.phone;
+      const updated = await updateProfile(profile.id, { full_name: values.full_name, phone });
       setProfile(updated);
       setIsSuccess(true);
       setMessage('Profile updated.');

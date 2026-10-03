@@ -10,10 +10,12 @@ import { useAuthStore } from '@/store/auth.store';
 
 export default function NotificationsScreen() {
   const userId = useAuthStore((s) => s.session?.user.id);
-  const query = useQuery({ queryKey: ['notifications'], queryFn: () => listNotifications(30) });
+  // Scope cache by user — unscoped ['notifications'] leaks the previous
+  // account's rows into the next login until refetch.
+  const query = useQuery({ queryKey: ['notifications', userId], queryFn: () => listNotifications(30), enabled: Boolean(userId) });
   const read = useMutation({
     mutationFn: markNotificationRead,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
   });
 
   useEffect(() => {
@@ -21,12 +23,18 @@ export default function NotificationsScreen() {
     const channel = supabase
       .channel(`notifications:${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, () =>
-        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
       )
       .subscribe((s) => {
         if (s === 'CHANNEL_ERROR' && __DEV__) console.warn('notifications channel error');
       });
-    return () => { supabase.removeChannel(channel).catch(() => {}); };
+    return () => {
+      // removeChannel may reject on a dead socket — never let cleanup throw.
+      try {
+        const out = supabase.removeChannel(channel) as unknown;
+        if (out instanceof Promise) out.catch(() => {});
+      } catch {}
+    };
   }, [userId]);
 
   if (query.isLoading) return <LoadingState label="Loading notifications…" />;

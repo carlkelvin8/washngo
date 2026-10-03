@@ -45,7 +45,7 @@ export default function OrderDetails() {
     queryFn: async () => {
       const { data, error } = await supabase.from('delivery_proofs').select('*').eq('order_id', id!).order('created_at');
       if (error) throw error;
-      return data as { id: string; proof_type: string; photo_path: string; latitude: number; longitude: number; created_at: string }[];
+      return data as { id: string; proof_type: string; photo_path: string; latitude: number | string; longitude: number | string; created_at: string }[];
     },
     enabled: Boolean(id),
   });
@@ -59,6 +59,10 @@ export default function OrderDetails() {
       await queryClient.invalidateQueries({ queryKey: ['order', id] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders', 'paged'] });
+      // Timeline + proofs render from separate queries — refresh them too or
+      // cancel/complete leaves stale UI until manual refetch.
+      await queryClient.invalidateQueries({ queryKey: ['status-logs', id] });
+      await queryClient.invalidateQueries({ queryKey: ['delivery-proofs', id] });
     },
   });
 
@@ -69,7 +73,15 @@ export default function OrderDetails() {
       if (!shopId) throw new Error('Laundry partner not found for this order');
       return submitRating({ orderId: id, targetType: 'laundry_shop', targetId: shopId, stars, review });
     },
-    onSuccess: () => setRated(true),
+    onSuccess: async () => {
+      setRated(true);
+      // Shop averages + review lists read from separate queries — refresh so
+      // the new rating shows without a manual refetch.
+      const shopId = order.data?.laundry_shop_id;
+      await queryClient.invalidateQueries({ queryKey: ['ratings', shopId] });
+      await queryClient.invalidateQueries({ queryKey: ['laundry', shopId] });
+      await queryClient.invalidateQueries({ queryKey: ['laundries'] });
+    },
   });
 
   if (order.isLoading) return <LoadingState label="Opening live order…" />;
@@ -107,17 +119,17 @@ export default function OrderDetails() {
             <Text style={ui.body}>
               {item.service?.name} · {item.quantity} kg
             </Text>
-            <Text style={ui.body}>₱{item.subtotal.toFixed(2)}</Text>
+            <Text style={ui.body}>₱{Number(item.subtotal).toFixed(2)}</Text>
           </View>
         ))}
         <View style={ui.divider} />
         <View style={ui.between}>
           <Text style={ui.h2}>Estimated total</Text>
-          <Text style={ui.price}>₱{value.total_amount.toFixed(2)}</Text>
+          <Text style={ui.price}>₱{Number(value.total_amount).toFixed(2)}</Text>
         </View>
         <Text style={ui.caption}>
-          Laundry ₱{value.laundry_subtotal.toFixed(2)} · Pickup ₱{value.pickup_delivery_fee.toFixed(2)} · Return ₱{value.return_delivery_fee.toFixed(2)} · Platform
-          ₱{value.platform_fee.toFixed(2)}
+          Laundry ₱{Number(value.laundry_subtotal).toFixed(2)} · Pickup ₱{Number(value.pickup_delivery_fee).toFixed(2)} · Return ₱{Number(value.return_delivery_fee).toFixed(2)} · Platform
+          ₱{Number(value.platform_fee).toFixed(2)}
         </Text>
         {value.special_instructions ? (
           <>
@@ -226,7 +238,7 @@ export default function OrderDetails() {
   );
 }
 
-function ProofCard({ proof }: { proof: { id: string; proof_type: string; photo_path: string; latitude: number; longitude: number; created_at: string } }) {
+function ProofCard({ proof }: { proof: { id: string; proof_type: string; photo_path: string; latitude: number | string; longitude: number | string; created_at: string } }) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -242,7 +254,7 @@ function ProofCard({ proof }: { proof: { id: string; proof_type: string; photo_p
         <Text style={ui.caption}>{new Date(proof.created_at).toLocaleString('en-PH')}</Text>
       </View>
       {signedUrl ? <Image source={{ uri: signedUrl }} style={styles.proofImage} contentFit="cover" transition={200} /> : <Text style={ui.caption}>📷 {proof.photo_path}</Text>}
-      <Text style={ui.caption}>Location {proof.latitude.toFixed(5)}, {proof.longitude.toFixed(5)}</Text>
+      <Text style={ui.caption}>Location {Number(proof.latitude).toFixed(5)}, {Number(proof.longitude).toFixed(5)}</Text>
       <Text style={ui.caption}>Private proof — visible only to order participants (RLS).</Text>
     </Card>
   );

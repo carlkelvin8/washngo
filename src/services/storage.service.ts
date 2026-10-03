@@ -4,6 +4,21 @@ import * as Location from 'expo-location';
 import { AppError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 
+// Idempotency probe: a prior attempt may have uploaded the proof but failed
+// the job transition (timeout/crash) — reusing it avoids duplicate photos,
+// duplicate storage objects, and duplicate proof rows on retry.
+export async function getProofForJob(jobId: string, proofType: 'pickup' | 'delivery') {
+  const { data, error } = await supabase
+    .from('delivery_proofs')
+    .select('id, photo_path')
+    .eq('delivery_job_id', jobId)
+    .eq('proof_type', proofType)
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return (data as { id: string; photo_path: string } | null) ?? null;
+}
+
 export async function captureAndUploadProof(jobId: string, orderId: string, proofType: 'pickup' | 'delivery') {
   const camera = await ImagePicker.requestCameraPermissionsAsync();
   const locationPermission = await Location.requestForegroundPermissionsAsync();
@@ -17,10 +32,22 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
     exif: false,
   });
   if (result.canceled) throw new AppError('No proof was submitted. Take a photo when you are ready.');
+  const asset = result.assets?.[0];
+  if (!asset?.uri) throw new AppError('No proof was submitted. Take a photo when you are ready.');
 
-  const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-  let assetUri = result.assets[0].uri;
-  let mimeType = result.assets[0].mimeType ?? 'image/jpeg';
+  let position: Location.LocationObject;
+  try {
+    position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+  } catch {
+    throw new AppError('Your location could not be captured. Enable location access and try again.');
+  }
+  // Verify auth before any storage upload to avoid orphan files when session expires
+  const { data: authPre } = await supabase.auth.getUser();
+  if (!authPre.user) throw new AppError('Please sign in again.');
+
+  let assetUri = asset.uri;
+  let mimeType = asset.mimeType ?? 'image/jpeg';
+  let resized = false;
 
   // First-principles: resize to 1280w to avoid 4MB heap + OOM on low-end Android
   try {
@@ -30,9 +57,11 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
       format: SaveFormat.JPEG,
     });
     assetUri = manipulated.uri;
+    resized = true;
   } catch {
     // manipulator not available (web) — use original
   }
+  if (resized) mimeType = 'image/jpeg';
 
   // fetch() fails for ph:// on iOS; try FileSystem as fallback
   let blob: ArrayBuffer;
@@ -52,7 +81,10 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
   }
   const path = `${orderId}/${jobId}/${Date.now()}.jpg`;
 
-  const upload = await supabase.storage.from('delivery-proofs').upload(path, blob, {
+  // Supabase storage expects Blob/Uint8Array on RN; ArrayBuffer fails on native
+  const uploadBody = new Uint8Array(blob);
+
+  const upload = await supabase.storage.from('delivery-proofs').upload(path, uploadBody, {
     contentType: mimeType,
     upsert: false,
     cacheControl: '3600',
@@ -61,7 +93,10 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
 
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) {
-    await supabase.storage.from('delivery-proofs').remove([path]);
+    // Best-effort cleanup; RLS may block anon delete — orphan is private but log warning
+    try {
+      await supabase.storage.from('delivery-proofs').remove([path]);
+    } catch {}
     throw new AppError('Please sign in again.');
   }
 
@@ -76,7 +111,10 @@ export async function captureAndUploadProof(jobId: string, orderId: string, proo
   });
 
   if (error) {
-    await supabase.storage.from('delivery-proofs').remove([path]);
+    // Best-effort orphan cleanup — never mask the original failure.
+    try {
+      await supabase.storage.from('delivery-proofs').remove([path]);
+    } catch {}
     throw new AppError('The handoff could not be recorded. Please try again.', error);
   }
 

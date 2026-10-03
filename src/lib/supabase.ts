@@ -35,7 +35,16 @@ function getAuthStorage() {
   if (Platform.OS === 'web') {
     try {
       if (typeof localStorage !== 'undefined' && localStorage !== null && typeof localStorage.getItem === 'function') {
-        return localStorage;
+        // Wrap sync localStorage in async adapter expected by supabase-js
+        return {
+          getItem: async (key: string) => localStorage.getItem(key),
+          setItem: async (key: string, value: string) => {
+            localStorage.setItem(key, value);
+          },
+          removeItem: async (key: string) => {
+            localStorage.removeItem(key);
+          },
+        };
       }
     } catch {}
     return serverStorage;

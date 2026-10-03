@@ -23,6 +23,8 @@ export function DateTimeField({ label, mode, value, minimumDate, onChange, error
       onChangeText={(next) => {
         if (mode === 'date') {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
+          // Device-local noon avoids UTC-midnight day-shift AND the old
+          // hardcoded +08:00 which broke min-date checks outside PH.
           const parsed = new Date(`${next}T12:00:00`);
           if (Number.isNaN(parsed.valueOf())) return;
           if (minimumDate) {

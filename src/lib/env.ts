@@ -8,16 +8,18 @@ const schema = z.object({
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success && __DEV__) {
-  // Visible in Expo logs — never throw, so the app can still render an error state.
   console.warn('Supabase env not configured', parsed.error.flatten().fieldErrors);
 }
 
 export const env = parsed.success
   ? parsed.data
   : {
-      EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
-      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'missing-publishable-key',
-    };
+       EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
+       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'missing-publishable-key',
+     };
 
 export const isConfigured = parsed.success;
 export const envError = parsed.success ? null : parsed.error.flatten().fieldErrors;
+// NOTE: never throw here — _layout renders a friendly "Configuration error"
+// screen when !isConfigured. Throwing at import would crash startup before
+// that branch can render (and break the prod bundle with missing env).

@@ -29,7 +29,10 @@ export function useRealtimeOrder(orderId?: string) {
       });
 
     return () => {
-      supabase.removeChannel(channel).catch(() => {});
+      try {
+        const out = supabase.removeChannel(channel) as unknown;
+        if (out instanceof Promise) out.catch(() => {});
+      } catch {}
     };
   }, [orderId]);
 }

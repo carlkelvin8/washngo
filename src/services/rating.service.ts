@@ -8,22 +8,17 @@ export async function submitRating(input: { orderId: string; targetType: 'laundr
   const stars = Math.round(input.stars);
   if (stars < 1 || stars > 5) throw new AppError('Choose 1–5 stars.');
 
-  const { data, error } = await supabase
-    .from('ratings')
-    .insert({
-      order_id: input.orderId,
-      customer_id: auth.user.id,
-      target_type: input.targetType,
-      target_id: input.targetId,
-      stars,
-      review: input.review?.trim() || null,
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('submit_rating', {
+    p_order_id: input.orderId,
+    p_target_type: input.targetType,
+    p_target_id: input.targetId,
+    p_stars: stars,
+    p_review: input.review?.trim() || null,
+  });
 
   if (error) {
     if (error.code === '23505') throw new AppError('You already rated this order.', error);
-    throw new AppError('Unable to submit rating.', error);
+    throw new AppError(error.message || 'Unable to submit rating.', error);
   }
   return data;
 }

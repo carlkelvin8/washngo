@@ -37,7 +37,8 @@ export async function ensureRoomForOrder(orderId: string): Promise<ChatRoom> {
 }
 
 export async function listMessages(roomId: string): Promise<ChatMessage[]> {
-  const { data, error } = await supabase.from('messages').select('*').eq('room_id', roomId).order('created_at');
+  // id tiebreak: same-millisecond bursts have nondeterministic created_at order.
+  const { data, error } = await supabase.from('messages').select('*').eq('room_id', roomId).order('created_at').order('id');
   if (error) throw new AppError('Unable to load messages.', error);
   return (data ?? []) as ChatMessage[];
 }

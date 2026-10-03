@@ -10,7 +10,7 @@ export function OfflineBanner() {
   if (!isOffline) return null;
   return (
     <View style={[styles.banner, { paddingTop: Math.max(8, insets.top + 4) }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
-      <Text style={styles.text}>You are offline — bookings and live updates will resume when reconnected.</Text>
+      <Text style={styles.text}>You are offline — bookings, chat and live updates need a connection. Nothing is queued.</Text>
     </View>
   );
 }

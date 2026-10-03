@@ -1,10 +1,12 @@
+import { useCallback } from 'react';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { AccountCard } from '@/components/account-card';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Metric, Screen, Title, ui } from '@/components/ui';
-import { acceptJob, getRiderStatus, listAvailableJobs, listMyJobsPage, setRiderOnline, updateJob } from '@/services/rider.service';
-import { captureAndUploadProof } from '@/services/storage.service';
+import { acceptJob, getRiderStatus, listAvailableJobs, listMyJobsPage, setRiderOnline, updateCurrentLocation, updateJob } from '@/services/rider.service';
+import { captureAndUploadProof, getProofForJob } from '@/services/storage.service';
 import { queryClient } from '@/lib/query-client';
 import { friendlyError } from '@/lib/errors';
 import { useAuthStore } from '@/store/auth.store';
@@ -22,8 +24,14 @@ function ActiveJob({ job }: { job: DeliveryJob }) {
   const action = nextJob[job.status];
   const mutation = useMutation({
     mutationFn: async () => {
-      if (action?.status === 'picked_up') await captureAndUploadProof(job.id, job.order_id, 'pickup');
-      if (action?.status === 'completed') await captureAndUploadProof(job.id, job.order_id, 'delivery');
+      // Idempotent retry: a previous attempt may have uploaded the proof but
+      // failed the transition — reuse it instead of opening the camera and
+      // creating duplicate storage objects + proof rows.
+      if (action?.status === 'picked_up' || action?.status === 'completed') {
+        const proofType = action.status === 'picked_up' ? 'pickup' : 'delivery';
+        const existing = await getProofForJob(job.id, proofType).catch(() => null);
+        if (!existing) await captureAndUploadProof(job.id, job.order_id, proofType);
+      }
       return updateJob(job.id, action!.status);
     },
     onSuccess: async () => {
@@ -60,12 +68,12 @@ function ActiveJob({ job }: { job: DeliveryJob }) {
         <Text style={ui.h2}>{job.type === 'pickup_to_laundry' ? 'Customer → Laundry' : 'Laundry → Customer'}</Text>
         <Badge>{job.status}</Badge>
       </View>
-      <Text style={ui.body}>Payout ₱{job.rider_payout.toFixed(2)}</Text>
+      <Text style={ui.body}>Payout ₱{Number(job.rider_payout).toFixed(2)}</Text>
       <Text style={ui.caption}>
-        Pickup pin {job.pickup_latitude.toFixed(5)}, {job.pickup_longitude.toFixed(5)}
+        Pickup pin {Number(job.pickup_latitude).toFixed(5)}, {Number(job.pickup_longitude).toFixed(5)}
       </Text>
       <Text style={ui.caption}>
-        Drop-off pin {job.destination_latitude.toFixed(5)}, {job.destination_longitude.toFixed(5)}
+        Drop-off pin {Number(job.destination_latitude).toFixed(5)}, {Number(job.destination_longitude).toFixed(5)}
       </Text>
       {mutation.error ? (
         <>
@@ -90,6 +98,16 @@ export default function RiderDashboard() {
   const online = status.data?.is_online ?? false;
 
   const available = useQuery({ queryKey: ['available-jobs'], queryFn: listAvailableJobs, enabled: online && profile?.status === 'approved' });
+
+  // Location went stale after going online (updateCurrentLocation was dead
+  // code) — refresh the rider pin every time the board regains focus.
+  useFocusEffect(
+    useCallback(() => {
+      if (online && profile?.status === 'approved') {
+        void updateCurrentLocation().catch(() => {});
+      }
+    }, [online, profile?.status]),
+  );
   const mine = useInfiniteQuery({
     queryKey: ['rider-jobs', 'paged'],
     queryFn: ({ pageParam }) => listMyJobsPage(pageParam),
@@ -135,7 +153,11 @@ export default function RiderDashboard() {
   const flatJobs = mine.data?.pages.flatMap((p) => p.data) ?? [];
   const active = flatJobs.find((job) => !['completed', 'cancelled'].includes(job.status));
   const completed = flatJobs.filter((job) => job.status === 'completed');
-  const earnings = completed.reduce((sum, job) => sum + job.rider_payout, 0);
+  // Number(undefined/"abc") = NaN poisons the whole sum — ignore bad rows.
+  const earnings = completed.reduce((sum, job) => {
+    const v = Number(job.rider_payout);
+    return sum + (Number.isFinite(v) ? v : 0);
+  }, 0);
   const isRefreshing = (mine.isFetching && !mine.isFetchingNextPage) || available.isFetching;
 
   return (
@@ -157,7 +179,7 @@ export default function RiderDashboard() {
 
       <View style={ui.grid}>
         <Metric label="Completed" value={completed.length} />
-        <Metric label="Earnings" value={`₱${earnings.toFixed(0)}`} hint="Completed deliveries" />
+        <Metric label="Earnings" value={`₱${earnings.toFixed(2)}`} hint="Completed deliveries" />
       </View>
 
       {active ? (
@@ -174,7 +196,7 @@ export default function RiderDashboard() {
         available.data.map((job) => (
           <Card key={job.id}>
             <Text style={ui.h2}>{job.type === 'pickup_to_laundry' ? 'Pickup to laundry' : 'Return to customer'}</Text>
-            <Text style={ui.price}>₱{job.rider_payout.toFixed(2)} payout</Text>
+            <Text style={ui.price}>₱{Number(job.rider_payout).toFixed(2)} payout</Text>
             <Button
               loading={accept.isPending}
               disabled={Boolean(active)}
@@ -210,7 +232,7 @@ export default function RiderDashboard() {
                   <Text style={ui.body}>{job.type === 'pickup_to_laundry' ? 'Pickup → Laundry' : 'Laundry → Customer'}</Text>
                   <Badge tone={job.status === 'completed' ? 'success' : 'danger'}>{job.status}</Badge>
                 </View>
-                <Text style={ui.caption}>Payout ₱{job.rider_payout.toFixed(2)} · {new Date(job.created_at).toLocaleDateString()}</Text>
+                <Text style={ui.caption}>Payout ₱{Number(job.rider_payout).toFixed(2)} · {new Date(job.created_at).toLocaleDateString()}</Text>
               </Card>
             ))}
           {mine.hasNextPage ? (

@@ -17,11 +17,10 @@ export function useNetworkStatus() {
       if (mounted) setIsConnected(resolveConnected(state));
     };
 
+    // Unknown is not online — on failure leave state null (not "online").
     void Network.getNetworkStateAsync()
       .then(apply)
-      .catch(() => {
-        if (mounted) setIsConnected(true);
-      });
+      .catch(() => {});
 
     let subscription: { remove: () => void } | undefined;
     // Use event listener when available (Expo SDK 57+) instead of polling

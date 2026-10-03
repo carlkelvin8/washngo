@@ -8,6 +8,7 @@ import { createAddress, listAddresses, removeAddress } from '@/services/address.
 import { addressSchema } from '@/features/address/schema';
 import { queryClient } from '@/lib/query-client';
 import { friendlyError } from '@/lib/errors';
+import { useAuthStore } from '@/store/auth.store';
 import { colors } from '@/constants/design';
 
 const emptyForm = { label: 'Home', full_address: '', barangay: '', latitude: 0, longitude: 0 };
@@ -19,7 +20,8 @@ export default function Addresses() {
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const query = useQuery({ queryKey: ['addresses'], queryFn: listAddresses });
+  const userId = useAuthStore((s) => s.session?.user.id);
+  const query = useQuery({ queryKey: ['addresses', userId], queryFn: listAddresses, enabled: Boolean(userId) });
 
   const create = useMutation({
     mutationFn: createAddress,
@@ -28,13 +30,13 @@ export default function Addresses() {
       setForm(emptyForm);
       setMessage('');
       setErrors({});
-      await queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      await queryClient.invalidateQueries({ queryKey: ['addresses', userId] });
     },
   });
 
   const remove = useMutation({
     mutationFn: removeAddress,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['addresses'] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['addresses', userId] }),
   });
 
   const captureCurrentLocation = async () => {

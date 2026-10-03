@@ -22,10 +22,11 @@ export default function ShopDetails() {
   if (query.isError || !query.data) return <ErrorState message="This laundry partner is unavailable." retry={() => void query.refetch()} />;
 
   const shop = query.data;
+  const rating = Number(shop.average_rating);
 
   return (
     <Screen refreshing={query.isFetching} onRefresh={() => void query.refetch()}>
-      <Title eyebrow={`★ ${Number(shop.average_rating).toFixed(1)} · ${shop.is_verified ? 'Verified' : 'Pending verification'}`}>
+      <Title eyebrow={`${rating > 0 ? `★ ${rating.toFixed(1)}` : 'New partner'} · ${shop.is_verified ? 'Verified' : 'Pending verification'}`}>
         {shop.name}
       </Title>
       {shop.description ? <Text style={ui.body}>{shop.description}</Text> : null}

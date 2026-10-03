@@ -13,7 +13,7 @@ export function AccountCard() {
     <Card>
       <Text style={ui.h2}>{profile.full_name}</Text>
       <Text style={ui.body}>
-        {profile.role.replace('_', ' ')} · {profile.status}
+        {profile.role.replaceAll('_', ' ')} · {profile.status}
       </Text>
       {profile.phone ? <Text style={ui.caption}>{profile.phone}</Text> : null}
       <Button

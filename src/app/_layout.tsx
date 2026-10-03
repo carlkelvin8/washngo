@@ -11,6 +11,8 @@ import { Button, LoadingState } from '@/components/ui';
 import { queryClient } from '@/lib/query-client';
 import { useAuthBootstrap } from '@/hooks/use-auth-bootstrap';
 import { useAuthStore } from '@/store/auth.store';
+import { signOut } from '@/services/auth.service';
+import { isConfigured, envError } from '@/lib/env';
 import { colors, space } from '@/constants/design';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -45,10 +47,27 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
 }
 
 function RouterGuard() {
-  useAuthBootstrap();
+  // Don't hit a dummy Supabase host when env is missing — show config error instead.
+  useAuthBootstrap(!isConfigured);
   const { session, profile, restoring } = useAuthStore();
   const path = usePathname();
   const router = useRouter();
+
+  // register_push_token was dead code (never called) — register once per
+  // sign-in so order/rider notifications can reach the device. Failures are
+  // DEV-visible in the service; never block startup on push.
+  useEffect(() => {
+    if (!session || !profile || !isConfigured) return;
+    let cancelled = false;
+    void import('@/services/notification.service')
+      .then(({ registerForPushNotifications }) => (cancelled ? null : registerForPushNotifications()))
+      .catch((e) => {
+        if (__DEV__) console.warn('push registration failed', e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, profile]);
 
   useEffect(() => {
     if (!restoring) void SplashScreen.hideAsync().catch(() => {});
@@ -62,6 +81,9 @@ function RouterGuard() {
       path.startsWith('/register') ||
       path.startsWith('/forgot-password') ||
       path.startsWith('/reset-password');
+    // Recovery flow needs its Supabase session to stay on the page:
+    // redirecting away mid-exchange makes password reset uncompletable.
+    const isRecovery = path.startsWith('/reset-password');
 
     if (!session && !inAuth) {
       router.replace('/login');
@@ -71,7 +93,7 @@ function RouterGuard() {
     // Authenticated but profile still loading/errored — stay on loading, don't loop
     if (session && !profile) return;
 
-    if (session && profile && (inAuth || path === '/')) {
+    if (session && profile && ((inAuth && !isRecovery) || path === '/')) {
       const target = groups[profile.role];
       // Prevent redirect loop if already inside target group
       if (!path.startsWith(`/${target}`)) {
@@ -80,9 +102,42 @@ function RouterGuard() {
     }
   }, [path, profile, restoring, router, session]);
 
+  if (!isConfigured) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.xl, gap: space.md, backgroundColor: colors.canvas }}>
+        <Text style={{ fontSize: 20, fontWeight: '900', color: colors.navy, textAlign: 'center' }}>Configuration error</Text>
+        <Text style={{ color: colors.muted, textAlign: 'center' }}>Supabase is not configured. {JSON.stringify(envError)}</Text>
+      </View>
+    );
+  }
+
   if (restoring) return <LoadingState label="Preparing WashNgo…" />;
-  // Show loading instead of blank stack while profile resolves after session
-  if (session && !profile) return <LoadingState label="Loading your account…" />;
+  // Session exists but profile won't resolve (RLS/network/missing row) — offer
+  // retry + sign-out instead of hanging on a spinner forever.
+  if (session && !profile) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.xl, gap: space.md, backgroundColor: colors.canvas }}>
+        <LoadingState label="Loading your account…" />
+        <Text style={{ color: colors.muted, textAlign: 'center' }}>Taking too long? Your profile may be unreachable.</Text>
+        <Button
+          onPress={() => {
+            const { setRestoring, setAuth } = useAuthStore.getState();
+            setRestoring(true);
+            import('@/services/auth.service')
+              .then(({ restoreAuth }) => restoreAuth())
+              .then(({ session: s, profile: p }) => setAuth(s, p))
+              .catch(() => {})
+              .finally(() => setRestoring(false));
+          }}
+        >
+          Retry
+        </Button>
+        <Button variant="secondary" onPress={() => void signOut().catch(() => {})}>
+          Sign out
+        </Button>
+      </View>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerShadowVisible: false, headerTitleStyle: { fontWeight: '800' } }}>

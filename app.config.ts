@@ -31,6 +31,13 @@ const config: ExpoConfig = {
     output: 'static',
     favicon: './assets/images/favicon.png',
   },
+  // EAS sets EAS_PROJECT_ID at build time — exposes it to the runtime
+  // fallback in notification.service (EXPO_PUBLIC_EAS_PROJECT_ID wins).
+  extra: {
+    eas: {
+      projectId: process.env.EAS_PROJECT_ID,
+    },
+  },
   plugins: [
     'expo-router',
     'expo-sqlite',
@@ -39,8 +46,10 @@ const config: ExpoConfig = {
     'expo-image-picker',
     ['expo-splash-screen', { backgroundColor: '#208AEF', image: './assets/images/splash-icon.png', imageWidth: 76 }],
     '@react-native-community/datetimepicker',
-    ['react-native-maps', { googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '' }],
-  ],
+    ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+      ? [['react-native-maps' as const, { googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY }] as const]
+      : []),
+  ] as ExpoConfig['plugins'],
   experiments: { typedRoutes: true, reactCompiler: true },
 };
 

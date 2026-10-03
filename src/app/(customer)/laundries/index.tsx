@@ -31,8 +31,11 @@ export default function Laundries() {
     const copy = [...query.data];
     if (sort === 'rating') copy.sort((a, b) => Number(b.average_rating) - Number(a.average_rating));
     if (sort === 'price_low' || sort === 'price_high') {
-      const cheapest = (s: (typeof copy)[number]) =>
-        s.services?.length ? Math.min(...s.services.map((x) => Number(x.minimum_charge ?? x.price))) : Infinity;
+      // Active services only — inactive prices must not leak into sort/cards.
+      const cheapest = (s: (typeof copy)[number]) => {
+        const active = s.services?.filter((x) => x.is_active) ?? [];
+        return active.length ? Math.min(...active.map((x) => Number(x.minimum_charge ?? x.price))) : Infinity;
+      };
       copy.sort((a, b) => (sort === 'price_low' ? cheapest(a) - cheapest(b) : cheapest(b) - cheapest(a)));
     }
     return copy;
@@ -70,16 +73,18 @@ export default function Laundries() {
         />
       ) : (
         sorted.map((shop) => {
-          const cheapest = shop.services?.length ? Math.min(...shop.services.map((s) => Number(s.minimum_charge ?? s.price))) : null;
+          const activeServices = shop.services?.filter((s) => s.is_active) ?? [];
+          const cheapest = activeServices.length ? Math.min(...activeServices.map((s) => Number(s.minimum_charge ?? s.price))) : null;
+          const rating = Number(shop.average_rating);
           return (
             <Card key={shop.id} onPress={() => router.push(`/(customer)/laundries/${shop.id}`)}>
               <View style={ui.between}>
                 <Text style={ui.h2}>{shop.name}</Text>
-                <Text>★ {Number(shop.average_rating).toFixed(1)}</Text>
+                {rating > 0 ? <Text>★ {rating.toFixed(1)}</Text> : <Text style={ui.caption}>New partner</Text>}
               </View>
               <Text style={ui.body}>{shop.address}</Text>
               {cheapest !== null ? <Text style={ui.price}>From ₱{Number(cheapest).toFixed(0)}</Text> : null}
-              <Text style={ui.caption}>{shop.is_verified ? 'Verified partner' : 'Verification pending'} · {shop.services?.filter((s) => s.is_active).length ?? 0} services</Text>
+              <Text style={ui.caption}>{shop.is_verified ? 'Verified partner' : 'Verification pending'} · {activeServices.length} services</Text>
             </Card>
           );
         })

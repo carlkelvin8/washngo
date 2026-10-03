@@ -71,7 +71,11 @@ export default function CustomerHome() {
           <Card key={shop.id} onPress={() => router.push(`/(customer)/laundries/${shop.id}`)}>
             <View style={ui.between}>
               <Text style={ui.h2}>{shop.name}</Text>
-              <Text>★ {Number(shop.average_rating).toFixed(1)}</Text>
+              {Number(shop.average_rating) > 0 ? (
+                <Text>★ {Number(shop.average_rating).toFixed(1)}</Text>
+              ) : (
+                <Text style={ui.caption}>New partner</Text>
+              )}
             </View>
             <Text style={ui.body}>{shop.address}</Text>
             <Text style={ui.caption}>{shop.services?.filter((s) => s.is_active).map((s) => s.name).join(' · ') || 'Services available'}</Text>

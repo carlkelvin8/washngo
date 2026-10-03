@@ -20,6 +20,10 @@ export default function AdminDashboard() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['verification-requests'] });
       void queryClient.invalidateQueries({ queryKey: ['admin-metrics'] });
+      // set_account_status flips laundry_shops.is_verified/is_active — refresh
+      // discovery so newly approved/suspended partners appear/disappear.
+      void queryClient.invalidateQueries({ queryKey: ['laundries'] });
+      void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
     },
   });
 
@@ -61,7 +65,7 @@ export default function AdminDashboard() {
           <Card key={profile.id}>
             <Text style={ui.h2}>{profile.full_name}</Text>
             <Text style={ui.body}>
-              {profile.role.replace('_', ' ')} · joined {new Date(profile.created_at).toLocaleDateString()}
+              {profile.role.replaceAll('_', ' ')} · joined {new Date(profile.created_at).toLocaleDateString()}
             </Text>
             <View style={ui.row}>
               <View style={ui.flex}>

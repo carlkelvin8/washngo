@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link } from 'expo-router';
 import { StyleSheet, Text } from 'react-native';
 import type { z } from 'zod';
 
-import { Button, Card, Field, Screen, Title } from '@/components/ui';
+import { Button, Card, Field, Screen, Title, ui } from '@/components/ui';
 import { resetSchema } from '@/features/auth/schemas';
 import { resetPassword } from '@/services/auth.service';
 import { friendlyError } from '@/lib/errors';
@@ -63,6 +64,9 @@ export default function ForgotScreen() {
         >
           Send reset link
         </Button>
+        <Link href="/login" style={ui.link}>
+          Back to login
+        </Link>
       </Card>
     </Screen>
   );

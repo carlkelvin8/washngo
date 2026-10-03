@@ -10,6 +10,7 @@ import { getLaundryShop } from '@/services/laundry.service';
 import { createBooking } from '@/services/order.service';
 import { bookingSchema } from '@/features/booking/schema';
 import { useBookingStore } from '@/store/booking.store';
+import { useAuthStore } from '@/store/auth.store';
 import { friendlyError } from '@/lib/errors';
 import { colors, radius, space } from '@/constants/design';
 
@@ -46,18 +47,31 @@ export default function Booking() {
   const [instructions, setInstructions] = useState(draft.specialInstructions);
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'pay_later'>(draft.paymentMethod);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const userId = useAuthStore((s) => s.session?.user.id);
 
-  const addresses = useQuery({ queryKey: ['addresses'], queryFn: listAddresses });
-  const shop = useQuery({ queryKey: ['laundry', draft.shopId], queryFn: () => getLaundryShop(draft.shopId!), enabled: Boolean(draft.shopId) });
+  const addresses = useQuery({ queryKey: ['addresses', userId], queryFn: listAddresses, enabled: Boolean(userId) });  const shop = useQuery({ queryKey: ['laundry', draft.shopId], queryFn: () => getLaundryShop(draft.shopId!), enabled: Boolean(draft.shopId) });
+
+  // Returning from addresses.tsx after adding the first address left addressId
+  // as '' with no way forward — fall back to default/first without setState
+  // in an effect (derived value, no cascading renders).
+  const selectedAddressId = useMemo(() => {
+    if (addressId) return addressId;
+    const list = addresses.data;
+    if (!list?.length) return '';
+    return list.find((a) => a.is_default)?.id ?? list[0].id;
+  }, [addressId, addresses.data]);
 
   const service = shop.data?.services?.find((item) => item.id === draft.serviceId);
 
   const estimate = useMemo(() => {
     if (!service) return null;
-    const kg = Number(weight);
-    if (!Number.isFinite(kg) || kg <= 0) return null;
     const price = Number(service.price);
     const minCharge = Number(service.minimum_charge);
+    if (!Number.isFinite(price) || !Number.isFinite(minCharge)) return null;
+    // Fixed-price services don't depend on weight — don't hide the estimate
+    // when the weight field is cleared/invalid.
+    const kg = Number(weight);
+    if (service.pricing_type === 'per_kg' && (!Number.isFinite(kg) || kg <= 0)) return null;
     const laundry = Math.max(minCharge, service.pricing_type === 'per_kg' ? price * kg : price);
     const platform = Math.round(laundry * PLATFORM_FEE_RATE * 100) / 100;
     return { laundry, platform, total: laundry + ROUND_TRIP_FEE + platform };
@@ -98,10 +112,13 @@ export default function Booking() {
   if (addresses.isLoading || shop.isLoading) return <LoadingState label="Preparing your booking…" />;
 
   const submit = () => {
+    // Button loading doesn't disable onPress — guard or double-tap creates
+    // two orders (no client idempotency key on create_booking).
+    if (mutation.isPending) return;
     const input = {
       shopId: draft.shopId!,
       serviceId: draft.serviceId!,
-      addressId,
+      addressId: selectedAddressId,
       pickupDate: datePart(pickup),
       pickupTime: timePart(pickup),
       estimatedWeight: Number(weight),
@@ -116,6 +133,16 @@ export default function Booking() {
       return;
     }
     setErrors({});
+    // Persist back to the draft store — locals were init-once and never
+    // written back, so rehydrated drafts kept stale pickupDate/Time/weight.
+    draft.patch({
+      addressId: selectedAddressId,
+      pickupDate: datePart(pickup),
+      pickupTime: timePart(pickup),
+      estimatedWeight: Number(weight),
+      specialInstructions: instructions,
+      paymentMethod,
+    });
     mutation.mutate({ ...input, specialInstructions: instructions.trim() || undefined });
   };
 
@@ -154,7 +181,7 @@ export default function Booking() {
                   {address.full_address}, Brgy. {address.barangay}
                 </Text>
               </View>
-              <Text style={styles.radio}>{addressId === address.id ? '●' : '○'}</Text>
+              <Text style={styles.radio}>{selectedAddressId === address.id ? '●' : '○'}</Text>
             </View>
           </Card>
         ))

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 export interface BookingDraft {
   shopId?: string;
@@ -14,20 +16,48 @@ export interface BookingDraft {
 
 const initial: BookingDraft = { estimatedWeight: 3, specialInstructions: '', paymentMethod: 'cod' };
 
-// Fallback for SSR / server builds where localStorage is unavailable.
-const memoryStorage = {
-  getItem: (_key: string): string | null => null,
-  setItem: (_key: string, _value: string): void => undefined,
-  removeItem: (_key: string): void => undefined,
+// Cross-platform async storage: SecureStore on native, localStorage on web
+const secureBookingStorage: StateStorage = {
+  getItem: async (key) => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key, value) => {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {}
+  },
+  removeItem: async (key) => {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {}
+  },
 };
 
-function getBookingStorage(): Storage {
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage !== null) return localStorage as Storage;
-  } catch {
-    // private browsing
-  }
-  return memoryStorage as unknown as Storage;
+const webBookingStorage: StateStorage = {
+  getItem: (key) => {
+    try {
+      if (typeof localStorage !== 'undefined') return localStorage.getItem(key);
+    } catch {}
+    return null;
+  },
+  setItem: (key, value) => {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+    } catch {}
+  },
+  removeItem: (key) => {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } catch {}
+  },
+};
+
+function getBookingStorage(): StateStorage {
+  return Platform.OS === 'web' ? webBookingStorage : secureBookingStorage;
 }
 
 export const useBookingStore = create<BookingDraft & { patch: (value: Partial<BookingDraft>) => void; reset: () => void }>()(
@@ -39,7 +69,7 @@ export const useBookingStore = create<BookingDraft & { patch: (value: Partial<Bo
     }),
     {
       name: 'washngo-booking',
-      storage: createJSONStorage(() => getBookingStorage()),
+      storage: createJSONStorage(() => getBookingStorage() as StateStorage),
       partialize: (state) => ({
         shopId: state.shopId,
         serviceId: state.serviceId,

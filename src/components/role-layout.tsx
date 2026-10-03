@@ -11,7 +11,19 @@ export function RoleLayout({ role }: PropsWithChildren<{ role: AppRole }>) {
   if (restoring) return <LoadingState label="Loading…" />;
   if (!session) return <Redirect href="/login" />;
   if (!profile) return <LoadingState label="Loading your account…" />;
-  if (profile.role !== role) return <Redirect href="/" />;
+  // Redirect straight to the user's own group — bouncing through "/" flashes
+  // /login while authenticated and breaks deep links.
+  if (profile.role !== role) {
+    const target =
+      profile.role === 'customer'
+        ? '/(customer)'
+        : profile.role === 'rider'
+          ? '/(rider)'
+          : profile.role === 'laundry_partner'
+            ? '/(laundry)'
+            : '/(admin)';
+    return <Redirect href={target as never} />;
+  }
 
   return <Stack screenOptions={{ headerShadowVisible: false, headerTitleStyle: { fontWeight: '800' } }} />;
 }

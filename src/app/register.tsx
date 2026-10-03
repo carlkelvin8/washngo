@@ -14,6 +14,7 @@ const fields: { name: keyof RegistrationValues; label: string; secure?: boolean;
   { name: 'phone', label: 'Mobile number', keyboard: 'phone-pad' },
   { name: 'email', label: 'Email', keyboard: 'email-address' },
   { name: 'password', label: 'Password', secure: true },
+  { name: 'confirmPassword', label: 'Confirm password', secure: true },
 ];
 
 export default function RegisterScreen() {
@@ -25,12 +26,12 @@ export default function RegisterScreen() {
     formState: { errors, isSubmitting },
   } = useForm<RegistrationValues>({
     resolver: zodResolver(registrationSchema),
-    defaultValues: { email: '', password: '', fullName: '', phone: '' },
+    defaultValues: { email: '', password: '', confirmPassword: '', fullName: '', phone: '' },
   });
 
-  const submit = handleSubmit(async (values) => {
+  const submit = handleSubmit(async ({ confirmPassword: _confirm, ...account }) => {
     try {
-      await signUp(values);
+      await signUp(account);
       setIsSuccess(true);
       setMessage('Check your inbox to verify your email, then sign in.');
     } catch (e) {

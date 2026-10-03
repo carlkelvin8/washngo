@@ -19,7 +19,15 @@ export async function getRiderStatus() {
 }
 
 export async function listAvailableJobs(): Promise<DeliveryJob[]> {
-  const { data, error } = await supabase.from('delivery_jobs').select('*, order:orders(*)').eq('status', 'available').order('created_at');
+  // Bounded: the board renders the whole list and the "nearby" label is
+  // zone-enforced by RLS — never pull an unbounded global queue.
+  const { data, error } = await supabase
+    .from('delivery_jobs')
+    .select('*, order:orders(*)')
+    .eq('status', 'available')
+    .order('created_at')
+    .order('id')
+    .limit(50);
   if (error) throw new AppError('Unable to load delivery jobs.', error);
   return (data ?? []) as DeliveryJob[];
 }
@@ -40,6 +48,7 @@ export async function listMyJobsPage(page: number, pageSize = JOBS_PAGE_SIZE): P
     .select('*, order:orders(*)')
     .neq('status', 'available')
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(from, to);
   if (error) throw new AppError('Unable to load your jobs.', error);
   const rows = (data ?? []) as DeliveryJob[];
@@ -87,7 +96,9 @@ export async function setRiderOnline(isOnline: boolean) {
 
   await ensureForegroundPermission('Enable location access in Settings before going online.');
 
+  // Acquire location before going online to make the transition atomic
   const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+
   await setAvailability(true);
 
   const { error } = await supabase.rpc('update_rider_location', {
@@ -96,7 +107,9 @@ export async function setRiderOnline(isOnline: boolean) {
   });
 
   if (error) {
-    await setAvailability(false);
+    try {
+      await setAvailability(false);
+    } catch {}
     throw new AppError('Your location could not be verified, so you remain offline.', error);
   }
 }

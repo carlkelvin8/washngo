@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import { useId, type PropsWithChildren, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -122,9 +122,10 @@ export function Button({
   );
 }
 
-let _fieldId = 0;
+let _fieldIdFallback = 0;
 export function Field({ label, error, ...props }: TextInputProps & { label: string; error?: string }) {
-  const nativeId = `field-${++_fieldId}`;
+  const reactId = useId();
+  const nativeId = `field-${reactId.replace(/:/g, '') || ++_fieldIdFallback}`;
   return (
     <View style={styles.field}>
       <Text nativeID={`${nativeId}-label`} style={styles.label}>
