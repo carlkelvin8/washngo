@@ -1,4 +1,4 @@
-import { Component, useEffect, type ReactNode } from 'react';
+import { Component, useEffect, useState, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +12,7 @@ import { queryClient } from '@/lib/query-client';
 import { useAuthBootstrap } from '@/hooks/use-auth-bootstrap';
 import { useAuthStore } from '@/store/auth.store';
 import { signOut } from '@/services/auth.service';
+import { friendlyError } from '@/lib/errors';
 import { isConfigured, envError } from '@/lib/env';
 import { colors, space } from '@/constants/design';
 
@@ -52,6 +53,7 @@ function RouterGuard() {
   const { session, profile, restoring } = useAuthStore();
   const path = usePathname();
   const router = useRouter();
+  const [retryError, setRetryError] = useState('');
 
   // register_push_token was dead code (never called) — register once per
   // sign-in so order/rider notifications can reach the device. Failures are
@@ -119,14 +121,18 @@ function RouterGuard() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.xl, gap: space.md, backgroundColor: colors.canvas }}>
         <LoadingState label="Loading your account…" />
         <Text style={{ color: colors.muted, textAlign: 'center' }}>Taking too long? Your profile may be unreachable.</Text>
+        {retryError ? <Text style={{ color: colors.red, textAlign: 'center' }}>{retryError}</Text> : null}
         <Button
           onPress={() => {
+            setRetryError('');
             const { setRestoring, setAuth } = useAuthStore.getState();
             setRestoring(true);
             import('@/services/auth.service')
               .then(({ restoreAuth }) => restoreAuth())
               .then(({ session: s, profile: p }) => setAuth(s, p))
-              .catch(() => {})
+              // Silent catch left the user on a spinner with no reason —
+              // surface the failure so they know whether to retry or sign out.
+              .catch((e) => setRetryError(friendlyError(e)))
               .finally(() => setRestoring(false));
           }}
         >

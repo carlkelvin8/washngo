@@ -22,6 +22,8 @@ export default function Addresses() {
 
   const userId = useAuthStore((s) => s.session?.user.id);
   const query = useQuery({ queryKey: ['addresses', userId], queryFn: listAddresses, enabled: Boolean(userId) });
+  // Per-row spinner: a single shared mutation would light every Remove.
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: createAddress,
@@ -36,6 +38,8 @@ export default function Addresses() {
 
   const remove = useMutation({
     mutationFn: removeAddress,
+    onMutate: (id) => setRemovingId(id),
+    onSettled: () => setRemovingId(null),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['addresses', userId] }),
   });
 
@@ -125,7 +129,7 @@ export default function Addresses() {
             </View>
             <Button
               variant="secondary"
-              loading={remove.isPending}
+              loading={remove.isPending && removingId === address.id}
               onPress={() =>
                 Alert.alert('Remove address?', 'Existing orders will keep their stored pickup details.', [
                   { text: 'Keep address', style: 'cancel' },
@@ -193,6 +197,7 @@ export default function Addresses() {
             variant="secondary"
             onPress={() => {
               setShow(false);
+              setForm(emptyForm);
               setErrors({});
               setMessage('');
             }}

@@ -25,7 +25,13 @@ export default function ShopDetails() {
   const rating = Number(shop.average_rating);
 
   return (
-    <Screen refreshing={query.isFetching} onRefresh={() => void query.refetch()}>
+    <Screen
+      refreshing={query.isFetching || reviews.isFetching}
+      onRefresh={() => {
+        void query.refetch();
+        void reviews.refetch();
+      }}
+    >
       <Title eyebrow={`${rating > 0 ? `★ ${rating.toFixed(1)}` : 'New partner'} · ${shop.is_verified ? 'Verified' : 'Pending verification'}`}>
         {shop.name}
       </Title>
@@ -71,6 +77,8 @@ export default function ShopDetails() {
       <Text style={ui.h2}>Recent reviews</Text>
       {reviews.isLoading ? (
         <Text style={ui.body}>Loading reviews…</Text>
+      ) : reviews.isError ? (
+        <Text style={ui.body}>Reviews could not be loaded. Pull to refresh.</Text>
       ) : reviews.data?.length ? (
         reviews.data.map((r) => (
           <Card key={r.id}>

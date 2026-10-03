@@ -1,9 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Text, View } from 'react-native';
+import { useEffect } from 'react';
 
 import { AccountCard } from '@/components/account-card';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Metric, Screen, Title, ui } from '@/components/ui';
 import { listMyOrders, transitionOrder } from '@/services/order.service';
+import { useAuthStore } from '@/store/auth.store';
+import { supabase } from '@/lib/supabase';
 import { queryClient } from '@/lib/query-client';
 import { friendlyError } from '@/lib/errors';
 import type { Order, OrderStatus } from '@/types/domain';
@@ -72,10 +75,43 @@ function OrderCard({ order }: { order: Order }) {
 }
 
 export default function LaundryDashboard() {
-  const query = useQuery({ queryKey: ['partner-orders'], queryFn: listMyOrders });
+  const profile = useAuthStore((s) => s.profile);
+  const query = useQuery({ queryKey: ['partner-orders'], queryFn: listMyOrders, enabled: profile?.status === 'approved' });
+
+  // The board claimed realtime but only refetched manually — subscribe to
+  // order changes so new bookings/rejections appear without pull-to-refresh.
+  // (Invalidation is cheap and harmless even for other shops' updates.)
+  useEffect(() => {
+    const channel = supabase
+      .channel('partner-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
+        queryClient.invalidateQueries({ queryKey: ['partner-orders'] }),
+      )
+      .subscribe((s) => {
+        if (s === 'CHANNEL_ERROR' && __DEV__) console.warn('partner orders channel error');
+      });
+    return () => {
+      try {
+        const out = supabase.removeChannel(channel) as unknown;
+        if (out instanceof Promise) out.catch(() => {});
+      } catch {}
+    };
+  }, []);
 
   if (query.isLoading) return <LoadingState label="Loading partner orders…" />;
   if (query.isError) return <ErrorState message="Partner orders are unavailable." retry={() => void query.refetch()} />;
+
+  // Pending/suspended partners pass the role gate — hold them here like the
+  // rider board does instead of showing an empty workspace.
+  if (profile?.status !== 'approved') {
+    return (
+      <Screen>
+        <Title>Verification {profile?.status ?? 'pending'}</Title>
+        <Text style={ui.body}>You can accept bookings after an admin approves your laundry partner account.</Text>
+        <AccountCard />
+      </Screen>
+    );
+  }
 
   const active = query.data?.filter((o) => !['completed', 'cancelled', 'rejected'].includes(o.status)) ?? [];
   const revenue = query.data

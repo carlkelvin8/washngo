@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Screen, Title, ui } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, LoadingState, Screen, Title, ui } from '@/components/ui';
 import { listLaundryShops } from '@/services/laundry.service';
 import { listMyOrders } from '@/services/order.service';
 import { orderStatusLabel, orderStatusTone } from '@/lib/order-status';
@@ -23,17 +23,6 @@ export default function CustomerHome() {
   }, [shops, orders]);
 
   if (shops.isLoading || orders.isLoading) return <LoadingState label="Finding nearby laundries…" />;
-  if (shops.isError || orders.isError) {
-    return (
-      <ErrorState
-        message="We could not load your home feed."
-        retry={() => {
-          void shops.refetch();
-          void orders.refetch();
-        }}
-      />
-    );
-  }
 
   const active = orders.data?.find((o) => !['completed', 'cancelled', 'rejected'].includes(o.status));
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there';
@@ -42,7 +31,16 @@ export default function CustomerHome() {
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
       <Title eyebrow={`Hello, ${firstName}`}>Fresh clothes, zero errands.</Title>
 
-      {active ? (
+      {/* Independent sections: one feed failing must not blank the other. */}
+      {orders.isError ? (
+        <Card>
+          <Text style={ui.h2}>Orders unavailable</Text>
+          <Text style={ui.body}>Your active order cannot be shown right now.</Text>
+          <Button variant="secondary" onPress={() => void orders.refetch()}>
+            Retry orders
+          </Button>
+        </Card>
+      ) : active ? (
         <Card onPress={() => router.push(`/(customer)/orders/${active.id}`)}>
           <View style={ui.between}>
             <Text style={ui.caption}>ACTIVE ORDER · {active.order_number}</Text>
@@ -66,7 +64,15 @@ export default function CustomerHome() {
         </Link>
       </View>
 
-      {shops.data?.length ? (
+      {shops.isError ? (
+        <Card>
+          <Text style={ui.h2}>Partners unavailable</Text>
+          <Text style={ui.body}>Nearby laundries could not be loaded.</Text>
+          <Button variant="secondary" onPress={() => void shops.refetch()}>
+            Retry partners
+          </Button>
+        </Card>
+      ) : shops.data?.length ? (
         shops.data.slice(0, 3).map((shop) => (
           <Card key={shop.id} onPress={() => router.push(`/(customer)/laundries/${shop.id}`)}>
             <View style={ui.between}>
@@ -78,7 +84,7 @@ export default function CustomerHome() {
               )}
             </View>
             <Text style={ui.body}>{shop.address}</Text>
-            <Text style={ui.caption}>{shop.services?.filter((s) => s.is_active).map((s) => s.name).join(' · ') || 'Services available'}</Text>
+            <Text style={ui.caption}>{shop.services?.filter((s) => s.is_active).map((s) => s.name).join(' · ') || 'No services listed yet'}</Text>
           </Card>
         ))
       ) : (
@@ -92,7 +98,14 @@ export default function CustomerHome() {
         </Link>
       </View>
 
-      {orders.data?.length ? (
+      {orders.isError ? (
+        <Card>
+          <Text style={ui.body}>Recent orders could not be loaded.</Text>
+          <Button variant="secondary" onPress={() => void orders.refetch()}>
+            Retry orders
+          </Button>
+        </Card>
+      ) : orders.data?.length ? (
         orders.data.slice(0, 2).map((order) => (
           <Card key={order.id} onPress={() => router.push(`/(customer)/orders/${order.id}`)}>
             <View style={ui.between}>

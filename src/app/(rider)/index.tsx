@@ -10,6 +10,7 @@ import { captureAndUploadProof, getProofForJob } from '@/services/storage.servic
 import { queryClient } from '@/lib/query-client';
 import { friendlyError } from '@/lib/errors';
 import { useAuthStore } from '@/store/auth.store';
+import { useNetworkStatus } from '@/hooks/use-network-status';
 import type { DeliveryJob, JobStatus } from '@/types/domain';
 import { colors } from '@/constants/design';
 
@@ -135,6 +136,10 @@ export default function RiderDashboard() {
     },
   });
 
+  // Hooks must run before any early return — cached jobs survive going
+  // offline, so Accept needs the offline flag even on first render.
+  const { isOffline } = useNetworkStatus();
+
   if (mine.isLoading || status.isLoading) return <LoadingState label="Loading delivery board…" />;
   if (mine.isError || status.isError) {
     return <ErrorState message="Your delivery board is unavailable." retry={() => { void mine.refetch(); void status.refetch(); }} />;
@@ -199,7 +204,7 @@ export default function RiderDashboard() {
             <Text style={ui.price}>₱{Number(job.rider_payout).toFixed(2)} payout</Text>
             <Button
               loading={accept.isPending}
-              disabled={Boolean(active)}
+              disabled={Boolean(active) || isOffline}
               onPress={() =>
                 Alert.alert('Accept this job?', active ? 'Finish your current job first.' : 'You must complete it before accepting another delivery.', [
                   { text: 'Not now', style: 'cancel' },
@@ -207,7 +212,7 @@ export default function RiderDashboard() {
                 ])
               }
             >
-              {active ? 'Finish current job first' : 'Accept job'}
+              {active ? 'Finish current job first' : isOffline ? 'Offline — reconnect to accept' : 'Accept job'}
             </Button>
           </Card>
         ))

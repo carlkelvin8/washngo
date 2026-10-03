@@ -28,3 +28,11 @@ export async function listRatingsForShop(shopId: string, limit = 10) {
   if (error) throw new AppError('Unable to load reviews.', error);
   return data ?? [];
 }
+
+// Hydration for the order-details rating card: without this, a completed
+// order re-offers the form on every visit and duplicates hit the 23505 path.
+export async function getRatingForOrder(orderId: string) {
+  const { data, error } = await supabase.from('ratings').select('id, stars').eq('order_id', orderId).limit(1).maybeSingle();
+  if (error) return null;
+  return (data as { id: string; stars: number } | null) ?? null;
+}

@@ -8,7 +8,7 @@ import { Badge, Button, Card, ErrorState, Field, LoadingState, Screen, Title, ui
 import { OrderChat } from '@/components/order-chat';
 import { TrackingMap } from '@/components/tracking-map';
 import { getOrder, transitionOrder } from '@/services/order.service';
-import { submitRating } from '@/services/rating.service';
+import { getRatingForOrder, submitRating } from '@/services/rating.service';
 import { supabase } from '@/lib/supabase';
 import { queryClient } from '@/lib/query-client';
 import { friendlyError } from '@/lib/errors';
@@ -30,6 +30,13 @@ export default function OrderDetails() {
   const [rated, setRated] = useState(false);
 
   const order = useQuery({ queryKey: ['order', id], queryFn: () => getOrder(id!), enabled: Boolean(id) });
+  // Existing rating: fail-open to the form (null) if the read errors — the
+  // server still guards duplicates with 23505.
+  const existingRating = useQuery({
+    queryKey: ['rating', id],
+    queryFn: () => getRatingForOrder(id!).catch(() => null),
+    enabled: Boolean(id),
+  });
   const logs = useQuery({
     queryKey: ['status-logs', id],
     queryFn: async () => {
@@ -78,6 +85,7 @@ export default function OrderDetails() {
       // Shop averages + review lists read from separate queries — refresh so
       // the new rating shows without a manual refetch.
       const shopId = order.data?.laundry_shop_id;
+      await queryClient.invalidateQueries({ queryKey: ['rating', id] });
       await queryClient.invalidateQueries({ queryKey: ['ratings', shopId] });
       await queryClient.invalidateQueries({ queryKey: ['laundry', shopId] });
       await queryClient.invalidateQueries({ queryKey: ['laundries'] });
@@ -88,10 +96,13 @@ export default function OrderDetails() {
   if (order.isError || !order.data) return <ErrorState message="This order could not be loaded." retry={() => void order.refetch()} />;
 
   const value = order.data;
+  const alreadyRated = rated || Boolean(existingRating.data);
   const canCancel = ['pending', 'laundry_confirmation'].includes(value.status);
   const pickupDateRaw = (() => {
     try {
-      const d = new Date(`${value.pickup_date}T${value.pickup_time}`);
+      // Stored as Manila wall time — parse with +08:00 like booking does, or
+      // devices outside Asia/Manila shift the displayed pickup.
+      const d = new Date(`${value.pickup_date}T${value.pickup_time}:00+08:00`);
       if (Number.isNaN(d.valueOf())) return `${value.pickup_date} ${value.pickup_time}`;
       return d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
     } catch {
@@ -173,7 +184,7 @@ export default function OrderDetails() {
         </Card>
       ) : null}
 
-      {value.status === 'completed' && !rated ? (
+      {value.status === 'completed' && !alreadyRated ? (
         <Card>
           <Text style={ui.h2}>Rate {value.laundry_shop?.name ?? 'this partner'}</Text>
           <View style={styles.stars}>
@@ -197,7 +208,7 @@ export default function OrderDetails() {
         </Card>
       ) : null}
 
-      {rated ? (
+      {alreadyRated ? (
         <Card>
           <Text style={ui.h2}>Thanks for your feedback</Text>
           <Text style={ui.body}>Your rating has been recorded and helps other customers.</Text>
@@ -209,6 +220,8 @@ export default function OrderDetails() {
       <Text style={ui.h2}>Proof photos</Text>
       {proofs.isLoading ? (
         <Text style={ui.body}>Loading proofs…</Text>
+      ) : proofs.isError ? (
+        <Text style={ui.body}>Proofs could not be loaded. Pull to refresh.</Text>
       ) : proofs.data?.length ? (
         proofs.data.map((proof) => (
           <ProofCard key={proof.id} proof={proof} />
@@ -218,7 +231,11 @@ export default function OrderDetails() {
       )}
 
       <Text style={ui.h2}>Handoff timeline</Text>
-      {logs.data?.length ? (
+      {logs.isLoading ? (
+        <Text style={ui.body}>Loading updates…</Text>
+      ) : logs.isError ? (
+        <Text style={ui.body}>Updates could not be loaded. Pull to refresh.</Text>
+      ) : logs.data?.length ? (
         logs.data.map((log) => (
           <View key={log.id} style={ui.row}>
             <Text style={styles.dot}>●</Text>

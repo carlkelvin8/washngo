@@ -49,7 +49,11 @@ export default function Booking() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const userId = useAuthStore((s) => s.session?.user.id);
 
-  const addresses = useQuery({ queryKey: ['addresses', userId], queryFn: listAddresses, enabled: Boolean(userId) });  const shop = useQuery({ queryKey: ['laundry', draft.shopId], queryFn: () => getLaundryShop(draft.shopId!), enabled: Boolean(draft.shopId) });
+  const addresses = useQuery({ queryKey: ['addresses', userId], queryFn: listAddresses, enabled: Boolean(userId) });
+  const shop = useQuery({ queryKey: ['laundry', draft.shopId], queryFn: () => getLaundryShop(draft.shopId!), enabled: Boolean(draft.shopId) });
+  // Lazy initializer runs once per mount — the 30-day server cap doesn't
+  // move mid-render (useMemo factory would re-run impurely).
+  const [maxPickupDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
 
   // Returning from addresses.tsx after adding the first address left addressId
   // as '' with no way forward — fall back to default/first without setState
@@ -110,6 +114,24 @@ export default function Booking() {
   }
 
   if (addresses.isLoading || shop.isLoading) return <LoadingState label="Preparing your booking…" />;
+  // Don't masquerade load failures as "no address"/broken estimate — the
+  // submit path would otherwise run against unchecked draft IDs.
+  if (addresses.isError || shop.isError) {
+    return (
+      <Screen>
+        <Title>Booking unavailable</Title>
+        <Text style={ui.body}>We could not load your addresses or the laundry details.</Text>
+        <Button
+          onPress={() => {
+            void addresses.refetch();
+            void shop.refetch();
+          }}
+        >
+          Try again
+        </Button>
+      </Screen>
+    );
+  }
 
   const submit = () => {
     // Button loading doesn't disable onPress — guard or double-tap creates
@@ -198,6 +220,9 @@ export default function Booking() {
         mode="date"
         value={pickup}
         minimumDate={new Date()}
+        // Server rejects >30 days ahead — cap the picker so it can't produce
+        // a guaranteed-to-fail selection.
+        maximumDate={maxPickupDate}
         error={errors.pickupDate}
         onChange={(date) => {
           const next = new Date(pickup);

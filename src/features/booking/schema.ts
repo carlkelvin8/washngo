@@ -16,7 +16,10 @@ export const bookingSchema = z.object({
   }
   // Reject impossible calendar dates like 2026-02-30 which JS rolls over
   const [y, m, d] = value.pickupDate.split('-').map(Number);
-  if (pickup.getFullYear() !== y || pickup.getMonth() + 1 !== m || pickup.getDate() !== d) {
+  // Manila wall time (UTC+8, no DST): device-local getters false-reject valid
+  // Manila dates on foreign devices, so shift then read UTC parts.
+  const manila = new Date(pickup.getTime() + 8 * 60 * 60 * 1000);
+  if (manila.getUTCFullYear() !== y || manila.getUTCMonth() + 1 !== m || manila.getUTCDate() !== d) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['pickupDate'], message: 'Invalid pickup date.' });
     return;
   }

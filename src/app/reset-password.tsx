@@ -53,8 +53,10 @@ export default function ResetPasswordScreen() {
           const initial = await Linking.getInitialURL();
           if (initial && !cancelled) didExchange = await exchangeFromUrl(initial);
         }
-        // Only call getSession if we didn't just exchange (prevents race)
-        if (!didExchange && !exchanged) await supabase.auth.getSession();
+        // getSession after a successful exchange is redundant (the exchange
+        // already set the session) but harmless; after a FAILED exchange it
+        // is required — a stale session may still exist from before.
+        if (!didExchange) await supabase.auth.getSession();
       } catch {
         // ignore — user will see "Auth session missing" on submit if no session
       } finally {

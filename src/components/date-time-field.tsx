@@ -8,11 +8,12 @@ type Props = {
   mode: 'date' | 'time';
   value: Date;
   minimumDate?: Date;
+  maximumDate?: Date;
   onChange: (value: Date) => void;
   error?: string;
 };
 
-export function DateTimeField({ label, mode, value, minimumDate, onChange, error }: Props) {
+export function DateTimeField({ label, mode, value, minimumDate, maximumDate, onChange, error }: Props) {
   const [open, setOpen] = useState(false);
   const display = mode === 'date'
     ? value.toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })
@@ -27,8 +28,8 @@ export function DateTimeField({ label, mode, value, minimumDate, onChange, error
     <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${label}`} onPress={() => setOpen(true)} style={[styles.control, error && styles.errorBorder]}>
       <Text style={styles.value}>{display}</Text><Text style={styles.action}>Change</Text>
     </Pressable>
-    {open ? <View style={styles.pickerWrap}>
-      <DateTimePicker value={value} mode={mode} minimumDate={minimumDate} display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={handleChange} />
+      {open ? <View style={styles.pickerWrap}>
+        <DateTimePicker value={value} mode={mode} minimumDate={minimumDate} maximumDate={maximumDate} display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={handleChange} />
       {Platform.OS === 'ios' ? <Pressable accessibilityRole="button" onPress={() => setOpen(false)}><Text style={styles.done}>Done</Text></Pressable> : null}
     </View> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}

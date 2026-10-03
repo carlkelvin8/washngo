@@ -1,5 +1,5 @@
 import MapView, { Marker } from 'react-native-maps';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { colors } from '@/constants/design';
@@ -33,6 +33,11 @@ export function TrackingMap({
   const safePickup = useMemo(() => (isValidCoord(pickup) ? coerce(pickup) : { latitude: 13.941, longitude: 121.163 }), [pickup]);
   const safeLaundry = useMemo(() => (isValidCoord(laundry) ? coerce(laundry) : safePickup), [laundry, safePickup]);
   const mapRef = useRef<MapView>(null);
+  // Fallback pins previously rendered silently at defaults — surface it.
+  const degraded = !isValidCoord(pickup) || !isValidCoord(laundry);
+  // Don't yank the viewport on every rider ping while the user inspects the
+  // route — center on the rider once, then leave the camera alone.
+  const centeredOnRider = useRef(false);
 
   useEffect(() => {
     const raw = [safePickup, safeLaundry, rider].filter((c): c is LatLng => isValidCoord(c));
@@ -48,7 +53,8 @@ export function TrackingMap({
   }, [safePickup, safeLaundry, rider]);
 
   useEffect(() => {
-    if (!isValidCoord(rider)) return;
+    if (!isValidCoord(rider) || centeredOnRider.current) return;
+    centeredOnRider.current = true;
     mapRef.current?.animateToRegion({ ...coerce(rider), latitudeDelta: 0.02, longitudeDelta: 0.02 }, 600);
   }, [rider]);
 
@@ -74,6 +80,11 @@ export function TrackingMap({
           <Marker coordinate={safeLaundry} title="Laundry partner" pinColor={colors.green} />
           {isValidCoord(rider) ? <Marker coordinate={coerce(rider)} title="Your rider" pinColor={colors.navy} /> : null}
         </MapView>
+        {degraded ? (
+          <View style={styles.degraded}>
+            <Text style={styles.degradedText}>Approximate area — a live pin is unavailable for this order.</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -82,4 +93,6 @@ export function TrackingMap({
 const styles = StyleSheet.create({
   frame: { height: 260, borderRadius: 18, backgroundColor: '#D9E2EC' },
   clip: { flex: 1, borderRadius: 18, overflow: 'hidden' },
+  degraded: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: 'rgba(20,30,45,0.82)', borderRadius: 10, padding: 8 },
+  degradedText: { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center' },
 });

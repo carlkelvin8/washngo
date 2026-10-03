@@ -41,7 +41,7 @@ export function Screen({ children, scroll = true, refreshing, onRefresh }: Scree
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.select({ ios: 'on-drag', default: 'interactive' }) as unknown as 'on-drag'}
+          keyboardDismissMode="on-drag"
           refreshControl={
             onRefresh ? (
               <RefreshControl

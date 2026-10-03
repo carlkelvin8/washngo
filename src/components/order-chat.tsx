@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -13,6 +13,7 @@ import { colors, radius, space } from '@/constants/design';
 export function OrderChat({ orderId }: { orderId: string }) {
   const userId = useAuthStore((s) => s.session?.user.id);
   const [draft, setDraft] = useState('');
+  const listRef = useRef<ScrollView>(null);
 
   const room = useQuery({ queryKey: ['chat-room', orderId], queryFn: () => getRoomForOrder(orderId) });
   const roomId = room.data?.id;
@@ -46,6 +47,24 @@ export function OrderChat({ orderId }: { orderId: string }) {
       await queryClient.invalidateQueries({ queryKey: ['chat-messages', roomId] });
     },
   });
+
+  // If the other participant creates the room after this screen mounted
+  // ("Start conversation" state), learn about it without requiring remount.
+  useEffect(() => {
+    if (roomId) return;
+    const channel = supabase
+      .channel(`chat-room:${orderId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_rooms', filter: `order_id=eq.${orderId}` }, () =>
+        queryClient.invalidateQueries({ queryKey: ['chat-room', orderId] }),
+      )
+      .subscribe();
+    return () => {
+      try {
+        const out = supabase.removeChannel(channel) as unknown;
+        if (out instanceof Promise) out.catch(() => {});
+      } catch {}
+    };
+  }, [orderId, roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -91,7 +110,14 @@ export function OrderChat({ orderId }: { orderId: string }) {
         {messages.isLoading ? (
           <Text style={ui.body}>Opening messages…</Text>
         ) : messages.data?.length ? (
-          <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            ref={listRef}
+            style={styles.listScroll}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            // Newest messages arrive below the fold — follow them automatically.
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          >
             {messages.data.map((item) => {
               const mine = item.sender_id === userId;
               return (

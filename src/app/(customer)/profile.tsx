@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { StyleSheet, Text } from 'react-native';
 import { z } from 'zod';
 
-import { Button, Card, Field, Screen, Title } from '@/components/ui';
+import { Button, Card, Field, LoadingState, Screen, Title } from '@/components/ui';
 import { useAuthStore } from '@/store/auth.store';
 import { updateProfile } from '@/services/profile.service';
 import { friendlyError } from '@/lib/errors';
@@ -40,7 +40,7 @@ export default function ProfileScreen() {
     if (profile) reset({ full_name: profile.full_name ?? '', phone: profile.phone ?? '' });
   }, [profile, reset]);
 
-  if (!profile) return null;
+  if (!profile) return <LoadingState label="Loading your profile…" />;
 
   const submit = handleSubmit(async (values) => {
     if (!profile) return;

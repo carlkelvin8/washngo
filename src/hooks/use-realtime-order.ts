@@ -13,6 +13,11 @@ export function useRealtimeOrder(orderId?: string) {
         void queryClient.invalidateQueries({ queryKey: ['order', orderId] });
         void queryClient.invalidateQueries({ queryKey: ['orders'] });
         void queryClient.invalidateQueries({ queryKey: ['orders', 'paged'] });
+        // Cross-role boards read separate keys — nudge them too so partner
+        // transitions and rider accepts propagate beyond this detail screen.
+        void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+        void queryClient.invalidateQueries({ queryKey: ['rider-jobs', 'paged'] });
+        void queryClient.invalidateQueries({ queryKey: ['available-jobs'] });
       })
       .on(
         'postgres_changes',

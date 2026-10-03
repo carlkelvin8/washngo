@@ -32,11 +32,15 @@ export default function Laundries() {
     if (sort === 'rating') copy.sort((a, b) => Number(b.average_rating) - Number(a.average_rating));
     if (sort === 'price_low' || sort === 'price_high') {
       // Active services only — inactive prices must not leak into sort/cards.
-      const cheapest = (s: (typeof copy)[number]) => {
+      // No-service shops sort last in both directions (never first on Price ↓).
+      const cheapest = (s: (typeof copy)[number]): number | null => {
         const active = s.services?.filter((x) => x.is_active) ?? [];
-        return active.length ? Math.min(...active.map((x) => Number(x.minimum_charge ?? x.price))) : Infinity;
+        return active.length ? Math.min(...active.map((x) => Number(x.minimum_charge ?? x.price))) : null;
       };
-      copy.sort((a, b) => (sort === 'price_low' ? cheapest(a) - cheapest(b) : cheapest(b) - cheapest(a)));
+      const rank = (v: number | null, high: boolean) => (v === null ? (high ? -Infinity : Infinity) : v);
+      copy.sort((a, b) =>
+        sort === 'price_low' ? rank(cheapest(a), false) - rank(cheapest(b), false) : rank(cheapest(b), true) - rank(cheapest(a), true),
+      );
     }
     return copy;
   }, [query.data, sort]);

@@ -33,17 +33,26 @@ export function useAuthBootstrap(disabled = false) {
         return;
       }
       const capturedSession = session;
+      const capturedToken = session.access_token;
       // Defer profile fetch to avoid deadlock inside auth callback.
       setTimeout(() => {
         if (!active) return;
         getProfile(capturedSession.user.id)
           .then((profile) => {
-            if (active) setAuth(capturedSession, profile);
+            if (!active) return;
+            // Staleness guard: a sign-out (or newer session) while the fetch
+            // was in-flight must not resurrect the old session.
+            const current = useAuthStore.getState().session;
+            if (!current || current.access_token !== capturedToken) return;
+            setAuth(capturedSession, profile);
           })
           .catch((error) => {
             if (__DEV__) console.error('Profile refresh failed', error);
             // Keep session but clear profile so RouterGuard shows loading and can retry
-            if (active) setAuth(capturedSession, null);
+            if (!active) return;
+            const current = useAuthStore.getState().session;
+            if (!current || current.access_token !== capturedToken) return;
+            setAuth(capturedSession, null);
           });
       }, 0);
     });
